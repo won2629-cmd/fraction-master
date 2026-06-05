@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="분수 마스터 - 초등학교 3~5학년 분수 학습 게임">
+    <title>분수 마스터 🌟</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ★ 별 배경 (자바스크립트로 채워짐) -->
+<div class="star-bg" id="star-bg" aria-hidden="true"></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     HUD — 게임 중 상단 정보 바
+════════════════════════════════════════════════════════ -->
+<div id="hud" role="status" aria-live="polite">
+    <div class="hud-item" id="hud-level">
+        <span class="hud-icon">📚</span>
+        <span>레벨</span>
+        <span class="hud-value" id="hud-level-val">1</span>
+    </div>
+    <div class="hud-item" id="hud-xp">
+        <span class="hud-icon">⚡</span>
+        <span>XP</span>
+        <span class="hud-value" id="hud-xp-val">0</span>
+    </div>
+    <div class="hud-item" id="hud-correct">
+        <span class="hud-icon">✅</span>
+        <span class="hud-value" id="hud-correct-val">0</span>
+    </div>
+    <div class="hud-item" id="hud-wrong">
+        <span class="hud-icon">❌</span>
+        <span class="hud-value" id="hud-wrong-val">0</span>
+    </div>
+</div>
+
+<!-- XP 진행 바 (HUD 아래) -->
+<div id="xp-bar-wrap" aria-hidden="true">
+    <div id="xp-bar" style="width:0%"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 1 — 메인 (시작) 화면
+════════════════════════════════════════════════════════ -->
+<div id="screen-main" class="screen active" role="main">
+    <div class="main-logo">
+        <span class="main-logo-icon">🌟</span>
+        <h1 class="main-title">분수 마스터</h1>
+        <p class="main-subtitle">분수 나라의 마법사가 되어봐요!</p>
+    </div>
+
+    <div class="main-buttons">
+        <button class="btn btn-lg btn-gold" id="btn-start-game"
+                onclick="showScreen('name')">
+            🎮 게임 시작
+        </button>
+        <button class="btn btn-lg btn-primary" id="btn-diagnosis-main"
+                onclick="showDiagnosisFromMain()">
+            📊 학습 진단
+        </button>
+        <button class="btn btn-lg btn-ghost" id="btn-records-main"
+                onclick="showRecordsFromMain()">
+            📝 내 기록 보기
+        </button>
+        <button class="btn btn-md btn-ghost" id="btn-teacher-main"
+                onclick="showScreen('teacher')">
+            👩‍🏫 교사용 대시보드
+        </button>
+    </div>
+
+    <!-- 저장된 학생 빠른 선택 -->
+    <div id="main-quick-profiles" style="display:none; width:100%; max-width:340px;">
+        <p style="font-size:0.85rem;color:var(--txt-dim);text-align:center;margin-bottom:10px;">
+            빠른 시작
+        </p>
+        <div id="main-profile-list"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 2 — 이름 입력
+════════════════════════════════════════════════════════ -->
+<div id="screen-name" class="screen">
+    <button class="back-btn" onclick="showScreen('main')">← 뒤로</button>
+
+    <div class="name-card">
+        <h2>📛 이름을 알려주세요!</h2>
+        <p style="font-size:0.9rem;color:var(--txt-dim);">
+            이름으로 학습 기록이 저장됩니다.
+        </p>
+
+        <input
+            type="text"
+            id="name-input"
+            class="name-input"
+            placeholder="이름을 입력하세요"
+            maxlength="12"
+            autocomplete="off"
+            inputmode="text"
+        >
+
+        <button class="btn btn-lg btn-gold" style="width:100%"
+                onclick="confirmName()">
+            시작하기 🚀
+        </button>
+
+        <!-- 저장된 프로필 목록 -->
+        <div class="saved-profiles" id="saved-profiles-wrap" style="display:none">
+            <h3>저장된 프로필</h3>
+            <div class="profile-list" id="saved-profiles-list"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 3 — 레벨 맵
+════════════════════════════════════════════════════════ -->
+<div id="screen-map" class="screen has-hud">
+    <div class="map-header">
+        <h2 id="map-greeting">안녕하세요! 👋</h2>
+    </div>
+
+    <!-- 캐릭터 & XP 표시 -->
+    <div class="character-display">
+        <span class="char-icon" id="char-icon">🌱</span>
+        <div class="char-info">
+            <div class="char-name" id="char-name">분수 새싹</div>
+            <div class="char-level" id="char-level-label">레벨 1</div>
+            <div class="xp-bar-container">
+                <div class="xp-bar-fill" id="map-xp-bar" style="width:0%"></div>
+            </div>
+            <div class="xp-label" id="map-xp-label">0 XP</div>
+        </div>
+    </div>
+
+    <!-- 레벨 카드 그리드 -->
+    <div class="level-grid" id="level-grid" role="list">
+        <!-- 자바스크립트로 생성 -->
+    </div>
+
+    <!-- 하단 메뉴 -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%;max-width:560px;">
+        <button class="btn btn-sm btn-primary" onclick="showScreen('diagnosis')">
+            📊 진단 보기
+        </button>
+        <button class="btn btn-sm btn-ghost" onclick="showScreen('records')">
+            📈 기록
+        </button>
+        <button class="btn btn-sm btn-ghost" onclick="showScreen('notes')">
+            📝 오답노트
+        </button>
+        <button class="btn btn-sm btn-ghost" onclick="showScreen('main');clearCurrentStudent()">
+            🔄 학생 변경
+        </button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 4 — 게임 (문제 풀기)
+════════════════════════════════════════════════════════ -->
+<div id="screen-game" class="screen has-hud">
+    <!-- 상단: 뒤로가기 + 레벨 정보 -->
+    <div style="width:100%;max-width:560px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <button class="back-btn" onclick="confirmLeaveGame()">← 맵으로</button>
+        <span id="game-level-label" style="font-size:0.85rem;color:var(--txt-dim)"></span>
+    </div>
+    <!-- 진행 바 -->
+    <div style="width:100%;max-width:560px;">
+        <div class="game-progress-bar">
+            <div class="game-progress-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+        <div class="game-progress-label">
+            <span id="progress-label">1 / 10</span>
+            <span id="progress-level-tag">레벨 1</span>
+        </div>
+    </div>
+
+    <!-- 문제 카드 -->
+    <div class="question-card" id="question-card">
+        <div class="question-level-tag" id="q-level-tag">레벨 1 · 분수 읽기</div>
+        <div class="question-text" id="q-text">문제가 여기에 표시됩니다.</div>
+
+        <!-- 분수 시각화 영역 -->
+        <div class="fraction-display" id="q-fraction-display" style="display:none"></div>
+
+        <!-- 선택지 -->
+        <div class="options-grid" id="options-grid" role="group" aria-label="선택지">
+            <button class="option-btn" data-idx="0" onclick="selectOption(0)"></button>
+            <button class="option-btn" data-idx="1" onclick="selectOption(1)"></button>
+            <button class="option-btn" data-idx="2" onclick="selectOption(2)"></button>
+            <button class="option-btn" data-idx="3" onclick="selectOption(3)"></button>
+        </div>
+    </div>
+
+    <!-- 피드백 영역 -->
+    <div class="feedback-area" id="feedback-area" aria-live="polite">
+        <div class="feedback-title" id="feedback-title"></div>
+        <div id="feedback-hint"></div>
+    </div>
+
+    <!-- 다음 문제 버튼 -->
+    <button class="btn btn-lg btn-primary" id="btn-next"
+            onclick="nextQuestion()">
+        다음 문제 →
+    </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 5 — 레벨 결과
+════════════════════════════════════════════════════════ -->
+<div id="screen-result" class="screen">
+    <button class="back-btn" onclick="showScreen('map')">← 맵으로</button>
+    <div class="result-card">
+        <span class="result-emoji" id="result-emoji">🏆</span>
+        <div class="result-title" id="result-title">잘했어요!</div>
+
+        <div class="result-score" id="result-score">
+            10문제 중 <strong id="result-correct">8</strong>문제 정답!
+        </div>
+
+        <div class="result-xp-gained" id="result-xp">
+            +80 XP 획득! ⚡
+        </div>
+
+        <!-- 정확도 바 -->
+        <div class="result-accuracy-bar">
+            <div class="result-accuracy-fill" id="result-acc-bar"
+                 style="width:0%;background:var(--clr-green)"></div>
+        </div>
+        <div style="font-size:0.85rem;color:var(--txt-dim);margin-bottom:12px;"
+             id="result-acc-label">정답률 80%</div>
+
+        <!-- 별 표시 -->
+        <div class="stars-row" id="result-stars">
+            <span class="star" id="star-1">★</span>
+            <span class="star" id="star-2">★</span>
+            <span class="star" id="star-3">★</span>
+        </div>
+
+        <!-- 진단 미리보기 -->
+        <div class="result-diagnosis-preview" id="result-diagnosis"></div>
+    </div>
+
+    <div class="result-buttons">
+        <button class="btn btn-lg btn-gold" id="btn-result-next"
+                onclick="goToNextLevel()">
+            다음 레벨 도전! 🚀
+        </button>
+        <button class="btn btn-md btn-primary" id="btn-result-retry"
+                onclick="retryCurrentLevel()">
+            🔄 다시 풀기
+        </button>
+        <button class="btn btn-md btn-ghost" onclick="showScreen('map')">
+            🗺️ 레벨 맵으로
+        </button>
+        <button class="btn btn-md btn-ghost" onclick="showScreen('notes')">
+            📝 오답노트 보기
+        </button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 6 — 학습 진단
+════════════════════════════════════════════════════════ -->
+<div id="screen-diagnosis" class="screen has-hud">
+    <button class="back-btn" onclick="goBackFromDiagnosis()">← 뒤로</button>
+    <h2 class="section-title">📊 나의 학습 진단</h2>
+
+    <div class="diagnosis-container" id="diagnosis-content">
+        <!-- renderDiagnosisHTML() 결과 삽입 -->
+        <div class="spinner"></div>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
+        <button class="btn btn-md btn-primary" onclick="showScreen('map')">
+            🎮 계속 학습하기
+        </button>
+        <button class="btn btn-md btn-ghost" onclick="showScreen('notes')">
+            📝 오답노트
+        </button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 7 — 기록 보기
+════════════════════════════════════════════════════════ -->
+<div id="screen-records" class="screen has-hud">
+    <button class="back-btn" onclick="showScreen('map')">← 뒤로</button>
+    <h2 class="section-title">📈 내 학습 기록</h2>
+
+    <div class="records-container">
+        <!-- 요약 통계 -->
+        <div class="records-stat-grid" id="records-stats">
+            <div class="stat-card">
+                <div class="stat-value" id="rec-total-xp">0</div>
+                <div class="stat-label">총 경험치 XP</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="rec-max-level">1</div>
+                <div class="stat-label">최고 레벨</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="rec-correct">0</div>
+                <div class="stat-label">총 정답 수</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="rec-accuracy">0%</div>
+                <div class="stat-label">전체 정답률</div>
+            </div>
+        </div>
+
+        <!-- 레벨별 상세 기록 -->
+        <h3 style="font-size:1rem;color:var(--txt-dim);margin-bottom:12px;">레벨별 기록</h3>
+        <div id="records-level-detail">
+            <!-- 자바스크립트로 생성 -->
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 8 — 오답노트
+════════════════════════════════════════════════════════ -->
+<div id="screen-notes" class="screen has-hud">
+    <button class="back-btn" onclick="goBackFromNotes()">← 뒤로</button>
+    <h2 class="section-title">📝 오답노트</h2>
+
+    <div class="notes-container" id="notes-content">
+        <!-- 자바스크립트로 생성 -->
+        <div class="spinner"></div>
+    </div>
+
+    <button class="btn btn-md btn-danger" id="btn-clear-notes"
+            onclick="clearWrongNotes()" style="margin-top:8px;">
+        🗑️ 오답노트 비우기
+    </button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 9 — 교사용 대시보드
+════════════════════════════════════════════════════════ -->
+<div id="screen-teacher" class="screen">
+    <button class="back-btn" onclick="showScreen('main');endTeacherSession()">← 뒤로</button>
+    <h2 class="section-title">👩‍🏫 교사용 대시보드</h2>
+
+    <!-- 로그인 카드 (처음 진입 시) -->
+    <div class="teacher-login-card" id="teacher-login-card">
+        <h2>🔒 비밀번호 입력</h2>
+        <p style="font-size:0.9rem;color:var(--txt-dim);margin-bottom:16px;">
+            교사용 기능은 비밀번호가 필요합니다.
+        </p>
+        <input
+            type="password"
+            id="teacher-pw-input"
+            class="name-input"
+            placeholder="비밀번호 입력"
+            maxlength="20"
+            autocomplete="off"
+            onkeydown="if(event.key==='Enter')teacherLogin()"
+        >
+        <button class="btn btn-md btn-primary" style="width:100%;margin-top:8px"
+                onclick="teacherLogin()">
+            입장하기
+        </button>
+        <p id="teacher-pw-error"
+           style="color:var(--clr-red);font-size:0.9rem;margin-top:10px;display:none">
+            비밀번호가 틀렸어요.
+        </p>
+    </div>
+
+    <!-- 대시보드 (로그인 후) -->
+    <div id="teacher-content" style="width:100%;max-width:900px;display:none">
+        <!-- renderTeacherDashboard() 결과 삽입 -->
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     레벨업 오버레이
+════════════════════════════════════════════════════════ -->
+<div id="levelup-overlay" role="dialog" aria-modal="true" aria-label="레벨업!">
+    <div class="levelup-card">
+        <span class="levelup-icon" id="lu-icon">⭐</span>
+        <div class="levelup-title">레벨 업!</div>
+        <div class="levelup-sub" id="lu-sub">분수 모험가가 됐어요!</div>
+        <button class="btn btn-lg btn-gold" style="margin-top:24px"
+                onclick="closeLevelUp()">
+            계속하기! 🚀
+        </button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     토스트 알림
+════════════════════════════════════════════════════════ -->
+<div id="toast" aria-live="assertive" aria-atomic="true"></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     스크립트 로드 순서 (의존성 순)
+════════════════════════════════════════════════════════ -->
+<script src="questions.js"></script>
+<script src="diagnosis.js"></script>
+<script src="teacher.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>
