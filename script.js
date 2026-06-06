@@ -547,15 +547,6 @@ function initNotesScreen() {
             <div class="note-level-tag">레벨 ${note.level} · ${note.levelName}</div>
             <div class="note-question">${renderTextWithFractions(note.question)}</div>
             ${fracHTML ? `<div class="note-fraction-preview">${fracHTML}</div>` : ''}
-            <div class="note-answer-row">
-                <span>내 답:</span>
-                <span class="note-my-answer">❌ ${renderOptionText(note.options[note.myAnswer] || '?')}</span>
-            </div>
-            <div class="note-answer-row">
-                <span>정답:</span>
-                <span class="note-correct-answer">✅ ${renderOptionText(note.options[note.correct] || '?')}</span>
-            </div>
-            ${note.hint ? `<div class="note-hint">${renderTextWithFractions(note.hint)}</div>` : ''}
             <button class="btn btn-sm btn-primary note-retry-btn"
                     onclick="retryNoteQuestion(${idx})">
                 🔄 다시 풀기
@@ -909,36 +900,52 @@ function handleWrongAnswer(q, myAnswerIdx) {
     const feedTitle = document.getElementById('feedback-title');
     const feedHint  = document.getElementById('feedback-hint');
 
-    feedTitle.textContent  = '😅 틀렸어요. 다음에 잘 해봐요!';
-    feedHint.innerHTML     = renderTextWithFractions(q.hint || '');
-    feedback.className    = 'feedback-area wrong-feedback visible';
+    feedTitle.textContent = '😅 틀렸어요. 다음에 잘 해봐요!';
+
+    // 오답노트 재도전 모드: 내 답 + 정답 + 힌트를 모두 보여줌
+    if (gameState.noteRetryMode) {
+        const myAns      = renderOptionText(q.options[myAnswerIdx] || '?');
+        const correctAns = renderOptionText(q.options[q.correct]   || '?');
+        const hintHTML   = q.hint ? renderTextWithFractions(q.hint) : '';
+        feedHint.innerHTML = `
+            <div style="margin-top:6px;font-size:0.9rem;line-height:1.8">
+                <span style="color:var(--clr-red)">❌ 내 답: ${myAns}</span><br>
+                <span style="color:var(--clr-green)">✅ 정답: ${correctAns}</span>
+                ${hintHTML ? `<br><span style="color:var(--txt-dim)">💡 ${hintHTML}</span>` : ''}
+            </div>`;
+    } else {
+        feedHint.innerHTML = renderTextWithFractions(q.hint || '');
+    }
+
+    feedback.className = 'feedback-area wrong-feedback visible';
 
     // 효과음
     playSound('wrong');
 
-    // 오답 카운터
-    gameState.wrongCount++;
+    // 오답 카운터 (오답노트 재도전 모드에서는 카운트 불필요)
+    if (!gameState.noteRetryMode) {
+        gameState.wrongCount++;
 
-    // 오답노트 저장
-    addToWrongNotes(q, myAnswerIdx, q.options[q.correct]);
+        // 오답노트 저장
+        addToWrongNotes(q, myAnswerIdx, q.options[q.correct]);
 
-    const studentData = getCurrentStudentData();
-    if (studentData) {
-        studentData.wrongCount = (studentData.wrongCount || 0) + 1;
-        updateCurrentStudentData(studentData);
-        updateHUD(studentData);
-    }
-
-    // 재출제 준비 (첫 오답만)
-    if (!gameState.retryMode) {
-        const similar = getSimilarQuestion(gameState.currentLevel, gameState.questions);
-        if (similar) {
-            gameState.retryQuestion = similar;
+        const studentData = getCurrentStudentData();
+        if (studentData) {
+            studentData.wrongCount = (studentData.wrongCount || 0) + 1;
+            updateCurrentStudentData(studentData);
+            updateHUD(studentData);
         }
-    } else {
-        // 재출제 오답 → 패스
-        gameState.retryMode     = false;
-        gameState.retryQuestion = null;
+
+        // 재출제 준비 (첫 오답만)
+        if (!gameState.retryMode) {
+            const similar = getSimilarQuestion(gameState.currentLevel, gameState.questions);
+            if (similar) {
+                gameState.retryQuestion = similar;
+            }
+        } else {
+            gameState.retryMode     = false;
+            gameState.retryQuestion = null;
+        }
     }
 }
 
