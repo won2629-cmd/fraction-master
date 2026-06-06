@@ -114,14 +114,20 @@ function flushCloudSave(name, studentData) {
  */
 async function syncFromCloud(name) {
     const cloudData = await loadStudentFromCloud(name);
-    if (!cloudData) return;
 
     const data  = loadData();
     const local = data.students[name];
+
+    if (!cloudData) {
+        // Firebase에 데이터 없음 → 로컬 데이터를 Firebase에 업로드
+        if (local) saveStudentToCloud(name, local).catch(() => {});
+        return;
+    }
+
     const merged = mergeStudentData(local, cloudData);
 
     if (merged !== local) {
-        // 클라우드 데이터가 더 진행됨 → 로컬 갱신
+        // 클라우드가 더 진행됨 → 로컬 갱신 후 화면 업데이트
         data.students[name] = merged;
         saveData(data);
         if (gameState.currentStudent === name) {
@@ -131,6 +137,11 @@ async function syncFromCloud(name) {
                 initMapScreen();
                 showToast('☁️ 다른 기기 기록으로 동기화됐어요!');
             }
+        }
+    } else {
+        // 로컬이 더 진행됐거나 동일 → Firebase 업데이트
+        if (merged !== cloudData) {
+            saveStudentToCloud(name, local).catch(() => {});
         }
     }
 }
