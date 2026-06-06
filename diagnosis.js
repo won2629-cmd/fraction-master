@@ -258,12 +258,13 @@ function diagnoseAll(studentData) {
 
     // 완료된 레벨들 분석
     Object.entries(levelProgress).forEach(([lvl, progress]) => {
+        if (!progress) return; // Firebase null 값 방어
         const level = parseInt(lvl);
-        if (progress.completed || (progress.correct + progress.wrong) > 0) {
-            const total   = progress.correct + progress.wrong;
-            const correct = progress.correct;
-            // 해당 레벨의 오답노트 항목 필터
-            const levelWrong = wrongNotes.filter(n => n.level === level);
+        const correct = progress.correct || 0;
+        const wrong   = progress.wrong   || 0;
+        if (progress.completed || (correct + wrong) > 0) {
+            const total = correct + wrong;
+            const levelWrong = wrongNotes.filter(n => n && n.level === level);
             results.push(diagnoseLevel(level, correct, total, levelWrong));
         }
     });

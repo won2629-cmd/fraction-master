@@ -437,22 +437,34 @@ function initMapScreen() {
 function initDiagnosisScreen() {
     if (!gameState.currentStudent) { showScreen('name'); return; }
     const studentData = getCurrentStudentData();
-    if (!studentData) return;
+    const container   = document.getElementById('diagnosis-content');
 
-    const diagData  = diagnoseAll(studentData);
-    const container = document.getElementById('diagnosis-content');
-    container.innerHTML = renderDiagnosisHTML(diagData);
+    if (!studentData) {
+        container.innerHTML = '<div class="diagnosis-empty">학생 데이터를 불러올 수 없어요.</div>';
+        return;
+    }
 
-    // 진행 바 애니메이션 (렌더 후 지연)
-    setTimeout(() => {
-        container.querySelectorAll('.lri-bar-fill').forEach(bar => {
-            const w = bar.style.width;
-            bar.style.width = '0';
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => { bar.style.width = w; });
+    try {
+        const diagData = diagnoseAll(studentData);
+        container.innerHTML = renderDiagnosisHTML(diagData);
+
+        // 진행 바 애니메이션
+        setTimeout(() => {
+            container.querySelectorAll('.lri-bar-fill').forEach(bar => {
+                const w = bar.style.width;
+                bar.style.width = '0';
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => { bar.style.width = w; });
+                });
             });
-        });
-    }, 100);
+        }, 100);
+    } catch (e) {
+        console.error('진단 화면 오류:', e);
+        container.innerHTML = `<div class="diagnosis-empty">
+            진단 데이터를 불러오지 못했습니다.<br>
+            <small style="color:var(--txt-dim)">문제가 계속되면 새로고침 해주세요.</small>
+        </div>`;
+    }
 }
 
 function initRecordsScreen() {
