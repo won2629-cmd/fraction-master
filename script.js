@@ -462,19 +462,24 @@ function selectProfile(name) {
     gameState.currentStudent = name;
 
     const data = loadData();
-    if (!data.students[name]) {
+    const isNew = !data.students[name];
+    if (isNew) {
         data.students[name] = createDefaultStudentData();
-        saveData(data);
-        showToast(`${name}님, 환영해요! 🎉`);
-    } else {
-        showToast(`다시 오셨군요, ${name}님! 👋`);
     }
+    // 마지막 로그인 학생 기억 (페이지 재진입 시 자동 복원용)
+    data.currentStudent = name;
+    saveData(data);
 
+    showToast(isNew ? `${name}님, 환영해요! 🎉` : `다시 오셨군요, ${name}님! 👋`);
     showScreen('map');
 }
 
 function clearCurrentStudent() {
     gameState.currentStudent = '';
+    // localStorage에서도 마지막 학생 기억 해제
+    const data = loadData();
+    data.currentStudent = '';
+    saveData(data);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -1462,9 +1467,11 @@ document.addEventListener('DOMContentLoaded', () => {
         getAudioCtx();
     }, { once: true });
 
-    // 이전 학생 자동 로그인
+    // 마지막 로그인 학생 자동 복원
+    // 이전에 플레이하다 닫았으면 이름 입력 없이 바로 맵으로 이동
     const data = loadData();
     if (data.currentStudent && data.students[data.currentStudent]) {
         gameState.currentStudent = data.currentStudent;
+        showScreen('map');  // 메인 화면 건너뛰고 바로 맵으로
     }
 });
