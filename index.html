@@ -396,6 +396,20 @@
 <div id="toast" aria-live="assertive" aria-atomic="true"></div>
 
 <!-- ═══════════════════════════════════════════════════════
+     학생 상세 진단 모달 (교사 대시보드용)
+════════════════════════════════════════════════════════ -->
+<div id="teacher-student-modal" class="teacher-modal-overlay"
+     onclick="if(event.target===this)closeStudentModal()">
+    <div class="teacher-modal-card">
+        <div class="teacher-modal-header">
+            <h2 id="teacher-modal-title">학생 상세</h2>
+            <button class="teacher-modal-close" onclick="closeStudentModal()">✕</button>
+        </div>
+        <div class="teacher-modal-body" id="teacher-modal-content"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      스크립트 로드 순서 (의존성 순)
 ════════════════════════════════════════════════════════ -->
 <script src="questions.js?v=3"></script>

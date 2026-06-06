@@ -303,7 +303,10 @@ function renderTeacherDashboard(studentsRaw) {
             html += `
                 <tr>
                     <td class="td-name">
-                        ${escapeHTML(st.name)}
+                        <button class="btn-student-name"
+                                onclick="showStudentDetail('${safeName}')">
+                            ${escapeHTML(st.name)}
+                        </button>
                         <button class="btn-delete-student"
                                 title="${safeName} 삭제"
                                 onclick="confirmDeleteStudent('${safeName}')">🗑️</button>
@@ -461,6 +464,95 @@ function downloadCSV() {
     link.download = `분수마스터_학생현황_${dateStr}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+}
+
+// ─────────────────────────────────────────────────────────
+// 학생 상세 진단 모달
+// ─────────────────────────────────────────────────────────
+
+const DETAIL_LEVEL_NAMES = ['','분수 읽기','단위분수','진분수·가분수','크기가 같은 분수','약분','공배수','최소공배수','통분','분수 비교','분수 덧셈','분수 뺄셈'];
+
+/**
+ * 학생 이름 클릭 시 상세 진단 모달을 표시합니다.
+ */
+function showStudentDetail(name) {
+    const studentData = _lastTeacherData ? _lastTeacherData[name] : null;
+    if (!studentData) { alert('학생 데이터를 찾을 수 없습니다.'); return; }
+
+    const summary  = calcStudentSummary(name, studentData);
+    const lp       = studentData.levelProgress || {};
+    const notes    = studentData.wrongNotes    || [];
+    const accColor = summary.accuracy >= 80 ? 'var(--clr-green)'
+                   : summary.accuracy >= 60 ? 'var(--clr-orange)'
+                   : 'var(--clr-red)';
+
+    // 레벨별 진행 rows
+    let levelRows = '';
+    for (let lv = 1; lv <= 11; lv++) {
+        const p   = lp[lv];
+        if (!p) {
+            levelRows += `<div class="dm-level-row dm-not-tried">
+                <span class="dm-lv-num">레벨 ${lv}</span>
+                <span class="dm-lv-name">${DETAIL_LEVEL_NAMES[lv]}</span>
+                <span class="dm-lv-pct" style="color:var(--txt-dim)">미도전</span>
+            </div>`;
+            continue;
+        }
+        const tot   = (p.correct || 0) + (p.wrong || 0);
+        const acc   = tot > 0 ? Math.round((p.correct / tot) * 100) : 0;
+        const color = acc >= 80 ? 'var(--clr-green)' : acc >= 60 ? 'var(--clr-orange)' : 'var(--clr-red)';
+        levelRows += `<div class="dm-level-row">
+            <span class="dm-lv-num">레벨 ${lv}</span>
+            <span class="dm-lv-name">${DETAIL_LEVEL_NAMES[lv]}</span>
+            <div class="dm-lv-bar-wrap"><div class="dm-lv-bar" style="width:${acc}%;background:${color}"></div></div>
+            <span class="dm-lv-pct" style="color:${color}">${acc}%</span>
+            <span class="dm-lv-detail">${p.correct || 0}✅ ${p.wrong || 0}❌</span>
+        </div>`;
+    }
+
+    const html = `
+    <div class="dm-stats-row">
+        <div class="dm-stat"><div class="dm-stat-val">${summary.characterName}</div><div class="dm-stat-label">캐릭터</div></div>
+        <div class="dm-stat"><div class="dm-stat-val" style="color:${accColor}">${summary.accuracy}%</div><div class="dm-stat-label">전체 정답률</div></div>
+        <div class="dm-stat"><div class="dm-stat-val" style="color:var(--clr-gold)">${summary.totalXP.toLocaleString()}</div><div class="dm-stat-label">경험치</div></div>
+        <div class="dm-stat"><div class="dm-stat-val" style="color:var(--clr-red)">${notes.length}</div><div class="dm-stat-label">오답노트</div></div>
+    </div>
+
+    <h3 class="dm-section-title">레벨별 학습 현황</h3>
+    <div class="dm-levels">${levelRows}</div>
+
+    ${summary.weakLevels.length > 0 ? `
+    <div class="dm-weak-wrap">
+        <h3 class="dm-section-title">⚠️ 집중 복습 필요</h3>
+        <div>${summary.weakLevels.map(lv => `<span class="dm-weak-badge">레벨 ${lv} ${DETAIL_LEVEL_NAMES[lv]}</span>`).join('')}</div>
+    </div>` : ''}
+
+    ${notes.length > 0 ? `
+    <h3 class="dm-section-title">📝 오답노트 (${notes.length}개)</h3>
+    <div class="dm-notes">
+        ${notes.map(n => `
+        <div class="dm-note-row">
+            <span class="dm-note-lv">Lv.${n.level}</span>
+            <span class="dm-note-q">${escapeHTML(n.question || '')}</span>
+        </div>`).join('')}
+    </div>` : `<p style="color:var(--txt-dim);font-size:0.9rem;margin-top:16px">오답노트가 없어요. 잘 하고 있어요! 🎉</p>`}`;
+
+    document.getElementById('teacher-modal-title').textContent = `${escapeHTML(name)}의 학습 진단`;
+    document.getElementById('teacher-modal-content').innerHTML = html;
+    document.getElementById('teacher-student-modal').classList.add('visible');
+
+    // 진행 바 애니메이션
+    setTimeout(() => {
+        document.querySelectorAll('.dm-lv-bar').forEach(bar => {
+            const w = bar.style.width;
+            bar.style.width = '0';
+            requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = w; }));
+        });
+    }, 50);
+}
+
+function closeStudentModal() {
+    document.getElementById('teacher-student-modal').classList.remove('visible');
 }
 
 /**
