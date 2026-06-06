@@ -147,9 +147,11 @@ async function getMergedStudentsData() {
  * @returns {object} 요약 통계
  */
 function calcStudentSummary(name, data) {
+    if (!data) data = {};
     const levelProgress = data.levelProgress || {};
     const wrongNotes    = data.wrongNotes    || [];
-    const completedLevels = Object.values(levelProgress).filter(p => p.completed).length;
+    // null 값 방어: Firebase에서 null 항목이 올 수 있음
+    const completedLevels = Object.values(levelProgress).filter(p => p && p.completed).length;
     const totalCorrect    = data.correctCount || 0;
     const totalWrong      = data.wrongCount   || 0;
     const totalAnswered   = totalCorrect + totalWrong;
@@ -157,11 +159,12 @@ function calcStudentSummary(name, data) {
         ? Math.round((totalCorrect / totalAnswered) * 100)
         : 0;
 
-    // 취약 레벨 찾기
+    // 취약 레벨 찾기 (null 방어)
     const weakLevels = [];
     Object.entries(levelProgress).forEach(([lvl, p]) => {
-        const total = p.correct + p.wrong;
-        if (total >= 5 && p.correct / total < 0.6) {
+        if (!p) return;
+        const total = (p.correct || 0) + (p.wrong || 0);
+        if (total >= 5 && (p.correct || 0) / total < 0.6) {
             weakLevels.push(parseInt(lvl));
         }
     });
