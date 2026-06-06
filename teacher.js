@@ -88,15 +88,16 @@ let _lastTeacherData = null;
  */
 async function getAllStudentsFromCloud() {
     const fbUrl = (typeof FIREBASE_URL !== 'undefined') ? FIREBASE_URL : '';
-    if (!fbUrl) return {};
+    if (!fbUrl) return null; // Firebase 미설정 → null (로컬 사용 신호)
     try {
         const ctrl = new AbortController();
         const tid  = setTimeout(() => ctrl.abort(), 5000);
         const res  = await fetch(`${fbUrl}/fractionMaster.json`, { signal: ctrl.signal });
-        if (!res.ok) { clearTimeout(tid); return {}; }
-        const raw = await res.json();   // ← 타임아웃 유지한 채로 body 읽기
-        clearTimeout(tid);              // ← json() 완료 후에야 해제
-        if (!raw || typeof raw !== 'object') return {};
+        if (!res.ok) { clearTimeout(tid); return null; } // 오류 → null
+        const raw = await res.json();
+        clearTimeout(tid);
+        if (raw === null) return {};  // Firebase 연결 성공, 학생 없음 → 빈 객체
+        if (!raw || typeof raw !== 'object') return null;
 
         const decoded = {};
         Object.entries(raw).forEach(([key, val]) => {
@@ -104,32 +105,47 @@ async function getAllStudentsFromCloud() {
             try { decoded[decodeURIComponent(key)] = val; }
             catch { decoded[key] = val; }
         });
-        return decoded;
+        return decoded; // 정상 데이터 반환
     } catch (e) {
-        return {}; // 오프라인 / 타임아웃 → 조용히 무시
+        return null; // 오프라인 / 타임아웃 → null (로컬 폴백 신호)
     }
 }
 
 /**
- * 로컬 + 클라우드 학생 데이터를 병합합니다.
- * Promise.race로 4초 하드 타임아웃 보장 → 무한 로딩 불가능
+ * 교사 대시보드용 학생 데이터 병합.
+ *
+ * Firebase 응답 있을 때 → Firebase가 정답 목록 (삭제된 학생 복원 안 됨)
+ * Firebase 응답 없을 때 → 로컬 데이터 폴백 (오프라인 대응)
  */
 async function getMergedStudentsData() {
     const local = getAllStudentsData();
 
-    // 어떤 경우에도 4초 안에 반환 (무한 로딩 방지)
-    let cloud = {};
+    // 4초 하드 타임아웃 (무한 로딩 방지)
+    let cloud;
     try {
-        const fallback = new Promise(resolve => setTimeout(() => resolve({}), 4000));
+        const fallback = new Promise(resolve => setTimeout(() => resolve(null), 4000));
         cloud = await Promise.race([getAllStudentsFromCloud(), fallback]);
     } catch (e) {
-        cloud = {};
+        cloud = null;
     }
 
-    const merged = { ...local };
+    // cloud = null  → Firebase 미설정 or 오프라인 → 로컬만 사용
+    // cloud = {}    → Firebase 정상, 학생 없음  → 빈 목록
+    // cloud = {...} → Firebase 정상, 학생 있음  → 클라우드 기준 병합
+    if (cloud === null) {
+        _lastTeacherData = local;
+        return local;
+    }
+
+    // Firebase를 기준 목록으로 사용
+    // → Firebase에 없는 학생은 삭제된 것으로 간주 (로컬에 있어도 표시 안 함)
+    const merged = {};
     Object.entries(cloud).forEach(([name, cloudData]) => {
-        const localData = merged[name];
-        if (!localData || (cloudData.totalXP || 0) > (localData.totalXP || 0)) {
+        const localData = local[name];
+        // 로컬이 더 진행됐으면 로컬 우선, 아니면 클라우드
+        if (localData && (localData.totalXP || 0) > (cloudData.totalXP || 0)) {
+            merged[name] = localData;
+        } else {
             merged[name] = cloudData;
         }
     });
