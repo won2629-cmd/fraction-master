@@ -367,7 +367,7 @@ function initMainScreen() {
             const st  = data.students[name];
             const lvl = st.currentLevel || 1;
             const xp  = st.totalXP      || 0;
-            return `<div class="profile-item" onclick="selectProfile('${escapeAttr(name)}')">
+            return `<div class="profile-item" onclick="selectProfileFromList('${escapeAttr(name)}')">
                 <span class="pi-name">${escapeHTML(name)}</span>
                 <span class="pi-level">레벨 ${lvl}</span>
                 <span class="pi-xp">⚡${xp} XP</span>
@@ -393,7 +393,7 @@ function initNameScreen() {
         wrap.style.display = 'block';
         list.innerHTML = students.map(name => {
             const st = data.students[name];
-            return `<div class="profile-item" onclick="selectProfile('${escapeAttr(name)}')">
+            return `<div class="profile-item" onclick="selectProfileFromList('${escapeAttr(name)}')">
                 <span class="pi-name">${escapeHTML(name)}</span>
                 <span class="pi-level">레벨 ${st.currentLevel || 1}</span>
                 <span class="pi-xp">⚡${st.totalXP || 0} XP</span>
@@ -617,15 +617,147 @@ function updateHUD(studentData) {
 function confirmName() {
     const input = document.getElementById('name-input');
     const name  = input.value.trim();
-    if (!name) {
-        input.focus();
-        showToast('이름을 입력해주세요! 😊');
-        return;
+    if (!name) { input.focus(); showToast('이름을 입력해주세요! 😊'); return; }
+
+    const data     = loadData();
+    const existing = data.students && data.students[name];
+
+    if (!existing) {
+        // 신규 학생 → PIN 설정
+        openPin('setup', name);
+    } else if (!existing.pin) {
+        // 기존 학생인데 PIN 없음 → PIN 설정 (업그레이드)
+        openPin('setup', name);
+    } else {
+        // 기존 학생 + PIN 있음 → PIN 확인
+        openPin('verify', name);
     }
-    selectProfile(name);
 }
 
-async function selectProfile(name, quiet = false) {
+// ─────────────────────────────────────────────────────────
+// PIN 시스템
+// ─────────────────────────────────────────────────────────
+
+const _pin = {
+    mode:      null,   // 'setup' | 'setup-confirm' | 'verify'
+    name:      null,   // 인증 중인 학생 이름
+    digits:    '',     // 현재 입력된 숫자
+    firstPin:  null,   // 설정 확인 단계에서 첫 번째 입력값
+    attempts:  0,      // 틀린 횟수 (verify 모드)
+};
+
+function openPin(mode, name) {
+    _pin.mode     = mode;
+    _pin.name     = name;
+    _pin.digits   = '';
+    _pin.firstPin = null;
+    _pin.attempts = 0;
+
+    document.getElementById('pin-student-name').textContent = `👤 ${name}`;
+    document.getElementById('pin-error').textContent = '';
+
+    if (mode === 'setup') {
+        document.getElementById('pin-title').textContent = 'PIN 설정';
+        document.getElementById('pin-guide').textContent = '나만의 4자리 숫자를 설정해주세요';
+    } else {
+        document.getElementById('pin-title').textContent = 'PIN 입력';
+        document.getElementById('pin-guide').textContent = '4자리 PIN을 눌러주세요';
+    }
+
+    pinUpdateDots();
+    document.getElementById('pin-modal').classList.add('visible');
+}
+
+function pinKey(digit) {
+    if (_pin.digits.length >= 4) return;
+    _pin.digits += digit;
+    pinUpdateDots();
+    if (_pin.digits.length === 4) {
+        setTimeout(pinComplete, 120); // 마지막 dot 채워진 후 약간 딜레이
+    }
+}
+
+function pinBack() {
+    _pin.digits = _pin.digits.slice(0, -1);
+    pinUpdateDots();
+}
+
+function pinCancel() {
+    document.getElementById('pin-modal').classList.remove('visible');
+    _pin.mode = null;
+}
+
+function pinUpdateDots() {
+    for (let i = 0; i < 4; i++) {
+        const dot = document.getElementById(`pd${i}`);
+        dot.className = 'pin-dot' + (i < _pin.digits.length ? ' filled' : '');
+    }
+}
+
+function pinErrorShake() {
+    for (let i = 0; i < 4; i++) {
+        const dot = document.getElementById(`pd${i}`);
+        dot.className = 'pin-dot error';
+    }
+    setTimeout(() => {
+        _pin.digits = '';
+        pinUpdateDots();
+    }, 500);
+}
+
+async function pinComplete() {
+    const entered = _pin.digits;
+
+    if (_pin.mode === 'setup') {
+        // 1차 입력 → 확인용으로 저장
+        _pin.firstPin = entered;
+        _pin.mode     = 'setup-confirm';
+        _pin.digits   = '';
+        document.getElementById('pin-guide').textContent = '한 번 더 입력해주세요';
+        pinUpdateDots();
+
+    } else if (_pin.mode === 'setup-confirm') {
+        // 2차 입력 → 일치 확인
+        if (entered === _pin.firstPin) {
+            // 일치 → PIN 저장 후 입장
+            document.getElementById('pin-modal').classList.remove('visible');
+            await selectProfile(_pin.name, false, entered);
+        } else {
+            // 불일치
+            document.getElementById('pin-error').textContent = '숫자가 다릅니다. 처음부터 다시 눌러주세요.';
+            _pin.mode     = 'setup';
+            _pin.firstPin = null;
+            _pin.digits   = '';
+            document.getElementById('pin-guide').textContent = '나만의 4자리 숫자를 설정해주세요';
+            pinErrorShake();
+        }
+
+    } else if (_pin.mode === 'verify') {
+        // 기존 학생 PIN 확인
+        const data    = loadData();
+        const student = data.students && data.students[_pin.name];
+        const correct = student && student.pin;
+
+        if (entered === correct) {
+            document.getElementById('pin-modal').classList.remove('visible');
+            await selectProfile(_pin.name, false, null);
+        } else {
+            _pin.attempts++;
+            if (_pin.attempts >= 3) {
+                document.getElementById('pin-error').textContent = 'PIN 3회 오류. 선생님께 초기화를 요청하세요.';
+                pinErrorShake();
+                setTimeout(pinCancel, 2000);
+            } else {
+                document.getElementById('pin-error').textContent = `PIN이 틀렸어요. (${_pin.attempts}/3)`;
+                _pin.digits = '';
+                pinErrorShake();
+            }
+        }
+    }
+}
+
+
+async function selectProfile(name, quiet = false, newPin = null) {
     gameState.currentStudent = name;
 
     const data  = loadData();
@@ -633,18 +765,31 @@ async function selectProfile(name, quiet = false) {
     if (isNew) {
         data.students[name] = createDefaultStudentData();
     }
-    // 마지막 로그인 학생을 localStorage에 기억
+    // 신규 PIN 설정 시 저장
+    if (newPin !== null) {
+        data.students[name].pin = newPin;
+    }
     data.currentStudent = name;
     saveData(data);
 
     if (!quiet) {
-        showToast(isNew ? `${name}님, 환영해요! 🎉` : `다시 오셨군요, ${name}님! 👋`);
+        showToast(isNew ? `${name}님, 환영해요! 🎉` : `어서오세요, ${name}님! 👋`);
     }
-    showScreen('map'); // 먼저 로컬 데이터로 즉시 표시
+    showScreen('map');
 
-    // 백그라운드 클라우드 동기화 (비블로킹)
-    // 다른 기기에서 더 진행됐으면 맵이 자동으로 갱신됨
     if (FIREBASE_URL) syncFromCloud(name);
+}
+
+function selectProfileFromList(name) {
+    const data     = loadData();
+    const existing = data.students && data.students[name];
+    if (existing && existing.pin) {
+        openPin('verify', name);
+    } else if (existing && !existing.pin) {
+        openPin('setup', name);
+    } else {
+        selectProfile(name, false, null);
+    }
 }
 
 function clearCurrentStudent() {

@@ -535,10 +535,24 @@ function showStudentDetail(name) {
             <span class="dm-note-lv">Lv.${n.level}</span>
             <span class="dm-note-q">${escapeHTML(n.question || '')}</span>
         </div>`).join('')}
-    </div>` : `<p style="color:var(--txt-dim);font-size:0.9rem;margin-top:16px">오답노트가 없어요. 잘 하고 있어요! 🎉</p>`}`;
+    </div>` : `<p style="color:var(--txt-dim);font-size:0.9rem;margin-top:16px">오답노트가 없어요. 잘 하고 있어요! 🎉</p>`}
+
+    <div style="margin-top:24px;padding-top:16px;border-top:var(--border-glass)">
+        <button id="dm-pin-reset-btn"
+                style="background:rgba(255,92,114,0.15);border:1px solid rgba(255,92,114,0.3);color:var(--clr-red);padding:10px 18px;border-radius:var(--radius-md);font-family:var(--font-main);font-size:0.9rem;cursor:pointer;">
+            🔑 PIN 초기화 (학생이 PIN을 잊었을 때)
+        </button>
+    </div>`;
 
     document.getElementById('teacher-modal-title').textContent = `${escapeHTML(name)}의 학습 진단`;
     document.getElementById('teacher-modal-content').innerHTML = html;
+
+    // PIN 초기화 버튼 동작 연결
+    const pinBtn = document.getElementById('dm-pin-reset-btn');
+    if (pinBtn) {
+        pinBtn.onclick = () => resetStudentPin(name);
+    }
+
     document.getElementById('teacher-student-modal').classList.add('visible');
 
     // 진행 바 애니메이션
@@ -553,6 +567,39 @@ function showStudentDetail(name) {
 
 function closeStudentModal() {
     document.getElementById('teacher-student-modal').classList.remove('visible');
+}
+
+/**
+ * 학생 PIN 초기화 (선생님이 학생 요청 시 사용)
+ */
+async function resetStudentPin(name) {
+    if (!confirm(`"${name}" 학생의 PIN을 초기화하시겠습니까?\n다음 로그인 시 새 PIN을 설정하게 됩니다.`)) return;
+
+    // 로컬 PIN 삭제
+    try {
+        const raw = localStorage.getItem('fractionMaster');
+        if (raw) {
+            const data = JSON.parse(raw);
+            if (data.students && data.students[name]) {
+                delete data.students[name].pin;
+                localStorage.setItem('fractionMaster', JSON.stringify(data));
+            }
+        }
+    } catch (e) {}
+
+    // Firebase PIN 삭제
+    const fbUrl = (typeof FIREBASE_URL !== 'undefined') ? FIREBASE_URL : '';
+    if (fbUrl) {
+        try {
+            await fetch(
+                `${fbUrl}/fractionMaster/${encodeURIComponent(name).replace(/\./g,'%2E')}/pin.json`,
+                { method: 'DELETE' }
+            );
+        } catch (e) {}
+    }
+
+    alert(`${name} 학생의 PIN이 초기화됐습니다.\n다음 로그인 시 새 PIN을 설정합니다.`);
+    closeStudentModal();
 }
 
 /**

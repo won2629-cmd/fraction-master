@@ -410,6 +410,43 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
+     PIN 입력 모달
+════════════════════════════════════════════════════════ -->
+<div id="pin-modal" class="pin-overlay" role="dialog" aria-modal="true">
+    <div class="pin-card">
+        <div class="pin-student-name" id="pin-student-name"></div>
+        <div class="pin-title"  id="pin-title">PIN 설정</div>
+        <div class="pin-guide"  id="pin-guide">4자리 숫자를 눌러주세요</div>
+
+        <!-- 4개 점 표시 -->
+        <div class="pin-dots" id="pin-dots">
+            <span class="pin-dot" id="pd0"></span>
+            <span class="pin-dot" id="pd1"></span>
+            <span class="pin-dot" id="pd2"></span>
+            <span class="pin-dot" id="pd3"></span>
+        </div>
+
+        <div class="pin-error" id="pin-error"></div>
+
+        <!-- 숫자 키패드 -->
+        <div class="pin-keypad">
+            <button class="pin-key" onclick="pinKey('1')">1</button>
+            <button class="pin-key" onclick="pinKey('2')">2</button>
+            <button class="pin-key" onclick="pinKey('3')">3</button>
+            <button class="pin-key" onclick="pinKey('4')">4</button>
+            <button class="pin-key" onclick="pinKey('5')">5</button>
+            <button class="pin-key" onclick="pinKey('6')">6</button>
+            <button class="pin-key" onclick="pinKey('7')">7</button>
+            <button class="pin-key" onclick="pinKey('8')">8</button>
+            <button class="pin-key" onclick="pinKey('9')">9</button>
+            <button class="pin-key pin-back" onclick="pinBack()">⌫</button>
+            <button class="pin-key" onclick="pinKey('0')">0</button>
+            <button class="pin-key pin-cancel" onclick="pinCancel()">취소</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
      스크립트 로드 순서 (의존성 순)
 ════════════════════════════════════════════════════════ -->
 <script src="questions.js?v=3"></script>

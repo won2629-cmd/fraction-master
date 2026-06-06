@@ -1707,3 +1707,61 @@ tr:hover .btn-delete-student:hover { opacity: 1; background: rgba(255,92,114,0.2
     .dm-level-row { grid-template-columns: 44px 1fr 70px 36px; }
     .dm-lv-detail { display: none; }
 }
+
+/* ─────────────────────────────────────────────────────────
+   PIN 입력 모달
+───────────────────────────────────────────────────────── */
+.pin-overlay {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(0,0,0,0.78); backdrop-filter: blur(12px);
+    align-items: center; justify-content: center; padding: 20px;
+}
+.pin-overlay.visible { display: flex; }
+
+.pin-card {
+    background: var(--bg-mid); border: var(--border-glass);
+    border-radius: var(--radius-lg);
+    width: 100%; max-width: 340px;
+    padding: 28px 24px 24px;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    animation: screenFadeIn 0.3s var(--ease-bounce);
+}
+
+.pin-student-name {
+    font-size: 1.1rem; font-weight: 700; color: var(--clr-gold);
+    margin-bottom: 6px;
+}
+.pin-title  { font-size: 1.25rem; font-weight: 800; color: var(--txt-white); margin-bottom: 4px; }
+.pin-guide  { font-size: 0.88rem; color: var(--txt-dim); margin-bottom: 20px; min-height: 1.4em; }
+.pin-error  { font-size: 0.88rem; color: var(--clr-red); min-height: 1.4em; margin-bottom: 8px; }
+
+/* 4개 점 */
+.pin-dots { display: flex; justify-content: center; gap: 14px; margin-bottom: 6px; }
+.pin-dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2.5px solid rgba(255,255,255,0.25);
+    background: transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.pin-dot.filled { background: var(--clr-blue); border-color: var(--clr-blue); }
+.pin-dot.error  { background: var(--clr-red);  border-color: var(--clr-red);
+                  animation: wrongShake 0.35s ease; }
+
+/* 키패드 */
+.pin-keypad {
+    display: grid; grid-template-columns: repeat(3,1fr);
+    gap: 10px; margin-top: 18px;
+}
+.pin-key {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius-md); color: var(--txt-white);
+    font-family: var(--font-main); font-size: 1.4rem; font-weight: 700;
+    padding: 16px 0; cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    user-select: none;
+}
+.pin-key:active { transform: scale(0.93); background: rgba(79,195,247,0.2); }
+.pin-back   { font-size: 1.1rem; color: var(--txt-dim); }
+.pin-cancel { font-size: 0.85rem; color: var(--txt-dim); }
+.pin-cancel:hover { color: var(--clr-red); }
