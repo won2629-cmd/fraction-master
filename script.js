@@ -196,6 +196,7 @@ let gameState = {
     answered: false,         // 현재 문제 답변 여부
     retryMode: false,        // 오답 재출제 모드
     retryQuestion: null,     // 재출제할 문제
+    noteRetryMode: false,    // 오답노트 재도전 모드 (정답 시 노트 삭제)
     fromScreen: 'map',       // 진단/기록 진입 이전 화면
     audioCtx: null           // Web Audio 컨텍스트
 };
@@ -893,6 +894,11 @@ function handleCorrectAnswer(q) {
         gameState.retryQuestion = null;
     }
 
+    // 오답노트 재도전 모드: 정답이면 해당 문제 노트에서 제거
+    if (gameState.noteRetryMode) {
+        removeNoteAfterCorrect(q.question, gameState.currentLevel);
+    }
+
     // +XP 파티클
     showXpFloat(XP_PER_CORRECT);
 }
@@ -937,6 +943,17 @@ function handleWrongAnswer(q, myAnswerIdx) {
 }
 
 function nextQuestion() {
+    // 오답노트 재도전 모드: 1문제 답변 후 오답노트 화면으로 복귀
+    if (gameState.noteRetryMode) {
+        const wasCorrect = gameState.correctCount >= 1;
+        gameState.noteRetryMode = false;
+        gameState.retryMode     = false;
+        gameState.retryQuestion = null;
+        showScreen('notes');
+        if (wasCorrect) showToast('✅ 정답! 오답노트에서 제거됐어요.');
+        return;
+    }
+
     // 재출제 모드로 전환?
     if (!gameState.retryMode && gameState.retryQuestion) {
         gameState.retryMode = true;
@@ -1320,15 +1337,16 @@ function makeFracHTML(frac, styleStr) {
 // 오답노트
 // ─────────────────────────────────────────────────────────
 
-function retryNoteQuestion(noteIndex) {
+function retryNoteQuestion(sortedIdx) {
     const studentData = getCurrentStudentData();
     if (!studentData) return;
 
-    const notes = studentData.wrongNotes || [];
-    const note  = notes[noteIndex];
+    // initNotesScreen과 동일한 정렬 기준 사용 (level 오름차순)
+    const notes  = studentData.wrongNotes || [];
+    const sorted = [...notes].sort((a, b) => a.level - b.level);
+    const note   = sorted[sortedIdx];
     if (!note) return;
 
-    // 문제 형식으로 변환
     const question = {
         question: note.question,
         display:  note.display,
@@ -1337,7 +1355,7 @@ function retryNoteQuestion(noteIndex) {
         hint:     note.hint
     };
 
-    // 레벨 설정 후 단일 문제 게임 시작
+    // 단일 문제 게임 시작 + 노트 재도전 모드 활성화
     gameState.currentLevel  = note.level;
     gameState.questionIndex = 0;
     gameState.correctCount  = 0;
@@ -1345,10 +1363,31 @@ function retryNoteQuestion(noteIndex) {
     gameState.answered      = false;
     gameState.retryMode     = false;
     gameState.retryQuestion = null;
+    gameState.noteRetryMode = true;   // ← 정답 시 노트 자동 삭제 활성화
     gameState.questions     = [question];
 
     showScreen('game');
     renderQuestion();
+}
+
+/**
+ * 오답노트에서 특정 문제를 삭제합니다 (정답 맞췄을 때 호출).
+ * 질문 텍스트와 레벨로 식별해서 삭제하고, wrongCount도 1 감소시킵니다.
+ */
+function removeNoteAfterCorrect(questionText, level) {
+    const data = loadData();
+    const name = gameState.currentStudent;
+    if (!name || !data.students[name]) return;
+
+    const notes = data.students[name].wrongNotes || [];
+    const idx   = notes.findIndex(n => n.question === questionText && n.level === level);
+    if (idx < 0) return;
+
+    notes.splice(idx, 1);
+    data.students[name].wrongNotes = notes;
+    // 오답 카운트도 1 감소 (0 미만 방지)
+    data.students[name].wrongCount = Math.max(0, (data.students[name].wrongCount || 0) - 1);
+    saveData(data);
 }
 
 function clearWrongNotes() {
