@@ -559,16 +559,20 @@ async function initTeacherScreen() {
         loginCard.style.display = 'none';
         content.style.display   = 'block';
 
-        // 로딩 표시 (클라우드 데이터 수신 중)
         content.innerHTML = `
             <div style="text-align:center;padding:40px;color:var(--txt-dim);">
                 <div class="spinner"></div>
                 <p style="margin-top:16px;">학생 데이터를 불러오는 중…</p>
             </div>`;
 
-        // 로컬 + 클라우드 병합 데이터로 대시보드 렌더링
-        const merged = await getMergedStudentsData();
-        content.innerHTML = renderTeacherDashboard(merged);
+        try {
+            const merged = await getMergedStudentsData();
+            content.innerHTML = renderTeacherDashboard(merged);
+        } catch (e) {
+            // 어떤 오류가 나도 로컬 데이터로 폴백 (무한 로딩 방지)
+            console.warn('클라우드 로드 실패, 로컬 데이터로 표시:', e);
+            content.innerHTML = renderTeacherDashboard(getAllStudentsData());
+        }
     } else {
         loginCard.style.display = 'block';
         content.style.display   = 'none';

@@ -87,19 +87,17 @@ let _lastTeacherData = null;
  * @returns {Promise<object>} { studentName: studentData, ... }
  */
 async function getAllStudentsFromCloud() {
-    // script.js 보다 먼저 로드되므로 typeof 체크 필요
     const fbUrl = (typeof FIREBASE_URL !== 'undefined') ? FIREBASE_URL : '';
     if (!fbUrl) return {};
     try {
         const ctrl = new AbortController();
         const tid  = setTimeout(() => ctrl.abort(), 5000);
         const res  = await fetch(`${fbUrl}/fractionMaster.json`, { signal: ctrl.signal });
-        clearTimeout(tid);
-        if (!res.ok) return {};
-        const raw = await res.json();
+        if (!res.ok) { clearTimeout(tid); return {}; }
+        const raw = await res.json();   // ← 타임아웃 유지한 채로 body 읽기
+        clearTimeout(tid);              // ← json() 완료 후에야 해제
         if (!raw || typeof raw !== 'object') return {};
 
-        // Firebase 키(encodeURIComponent 인코딩) → 실제 학생 이름으로 디코딩
         const decoded = {};
         Object.entries(raw).forEach(([key, val]) => {
             if (!val || typeof val !== 'object') return;
@@ -107,19 +105,26 @@ async function getAllStudentsFromCloud() {
             catch { decoded[key] = val; }
         });
         return decoded;
-    } catch {
+    } catch (e) {
         return {}; // 오프라인 / 타임아웃 → 조용히 무시
     }
 }
 
 /**
  * 로컬 + 클라우드 학생 데이터를 병합합니다.
- * 기준: totalXP가 더 높은 쪽 (더 진행된 기기의 기록 우선)
- * @returns {Promise<object>} 병합된 { studentName: studentData, ... }
+ * Promise.race로 4초 하드 타임아웃 보장 → 무한 로딩 불가능
  */
 async function getMergedStudentsData() {
     const local = getAllStudentsData();
-    const cloud = await getAllStudentsFromCloud();
+
+    // 어떤 경우에도 4초 안에 반환 (무한 로딩 방지)
+    let cloud = {};
+    try {
+        const fallback = new Promise(resolve => setTimeout(() => resolve({}), 4000));
+        cloud = await Promise.race([getAllStudentsFromCloud(), fallback]);
+    } catch (e) {
+        cloud = {};
+    }
 
     const merged = { ...local };
     Object.entries(cloud).forEach(([name, cloudData]) => {
@@ -129,7 +134,7 @@ async function getMergedStudentsData() {
         }
     });
 
-    _lastTeacherData = merged; // 캐시 갱신
+    _lastTeacherData = merged;
     return merged;
 }
 
