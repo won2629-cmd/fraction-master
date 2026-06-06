@@ -569,9 +569,18 @@ async function initTeacherScreen() {
             const merged = await getMergedStudentsData();
             content.innerHTML = renderTeacherDashboard(merged);
         } catch (e) {
-            // 어떤 오류가 나도 로컬 데이터로 폴백 (무한 로딩 방지)
             console.warn('클라우드 로드 실패, 로컬 데이터로 표시:', e);
-            content.innerHTML = renderTeacherDashboard(getAllStudentsData());
+            try {
+                content.innerHTML = renderTeacherDashboard(getAllStudentsData());
+            } catch (e2) {
+                console.error('대시보드 렌더 오류:', e2);
+                content.innerHTML = `<div style="padding:32px;text-align:center;color:var(--txt-dim)">
+                    <div style="font-size:2rem;margin-bottom:12px">⚠️</div>
+                    <p>데이터를 표시하지 못했습니다.</p>
+                    <p style="font-size:0.9rem;margin-top:8px">페이지를 새로고침(Ctrl+Shift+R) 후 다시 시도해주세요.</p>
+                    <button onclick="location.reload()" style="margin-top:16px;padding:10px 20px;background:var(--clr-blue);border:none;border-radius:20px;color:#fff;cursor:pointer;font-size:1rem">새로고침</button>
+                </div>`;
+            }
         }
     } else {
         loginCard.style.display = 'block';
