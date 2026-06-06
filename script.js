@@ -87,7 +87,13 @@ async function saveStudentToCloud(name, studentData) {
 function mergeStudentData(local, cloud) {
     if (!local) return cloud;
     if (!cloud) return local;
-    return (cloud.totalXP || 0) >= (local.totalXP || 0) ? cloud : local;
+    // XP가 더 높은 쪽을 기본으로 사용
+    const base = (cloud.totalXP || 0) >= (local.totalXP || 0) ? cloud : local;
+    // PIN은 어느 쪽에든 있으면 반드시 보존
+    // (클라우드 덮어씌움으로 PIN이 사라지는 것 방지)
+    const pin = local.pin || cloud.pin;
+    if (pin) return { ...base, pin };
+    return base;
 }
 
 // 클라우드 저장 디바운스 타이머 (잦은 저장 방지 — 마지막 후 3초)
