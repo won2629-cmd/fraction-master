@@ -74,6 +74,67 @@ function getAllStudentsData() {
     }
 }
 
+// ─────────────────────────────────────────────────────────
+// 클라우드 학생 데이터 수집 (Firebase 연동)
+// ─────────────────────────────────────────────────────────
+
+/** 마지막으로 로드한 병합 학생 데이터 캐시 (CSV 다운로드 등에서 재사용) */
+let _lastTeacherData = null;
+
+/**
+ * Firebase에서 모든 학생 데이터를 불러옵니다.
+ * FIREBASE_URL이 설정되지 않았거나 오프라인이면 {} 반환.
+ * @returns {Promise<object>} { studentName: studentData, ... }
+ */
+async function getAllStudentsFromCloud() {
+    // script.js 보다 먼저 로드되므로 typeof 체크 필요
+    const fbUrl = (typeof FIREBASE_URL !== 'undefined') ? FIREBASE_URL : '';
+    if (!fbUrl) return {};
+    try {
+        const ctrl = new AbortController();
+        const tid  = setTimeout(() => ctrl.abort(), 5000);
+        const res  = await fetch(`${fbUrl}/fractionMaster.json`, { signal: ctrl.signal });
+        clearTimeout(tid);
+        if (!res.ok) return {};
+        const raw = await res.json();
+        if (!raw || typeof raw !== 'object') return {};
+
+        // Firebase 키(encodeURIComponent 인코딩) → 실제 학생 이름으로 디코딩
+        const decoded = {};
+        Object.entries(raw).forEach(([key, val]) => {
+            if (!val || typeof val !== 'object') return;
+            try { decoded[decodeURIComponent(key)] = val; }
+            catch { decoded[key] = val; }
+        });
+        return decoded;
+    } catch {
+        return {}; // 오프라인 / 타임아웃 → 조용히 무시
+    }
+}
+
+/**
+ * 로컬 + 클라우드 학생 데이터를 병합합니다.
+ * 기준: totalXP가 더 높은 쪽 (더 진행된 기기의 기록 우선)
+ * @returns {Promise<object>} 병합된 { studentName: studentData, ... }
+ */
+async function getMergedStudentsData() {
+    const local = getAllStudentsData();
+    const cloud = await getAllStudentsFromCloud();
+
+    const merged = { ...local };
+    Object.entries(cloud).forEach(([name, cloudData]) => {
+        const localData = merged[name];
+        if (!localData || (cloudData.totalXP || 0) > (localData.totalXP || 0)) {
+            merged[name] = cloudData;
+        }
+    });
+
+    _lastTeacherData = merged; // 캐시 갱신
+    return merged;
+}
+
+
+
 /**
  * 학생 요약 통계를 계산합니다.
  * @param {string} name - 학생 이름
@@ -137,11 +198,13 @@ function getCharacterName(level) {
 
 /**
  * 전체 교사 대시보드 HTML을 렌더링합니다.
+ * @param {object} studentsRaw - getMergedStudentsData()로 가져온 학생 데이터
+ *                               (생략하면 로컬 데이터만 사용)
  * @returns {string} HTML 문자열
  */
-function renderTeacherDashboard() {
-    const studentsRaw = getAllStudentsData();
-    const students    = Object.entries(studentsRaw).map(
+function renderTeacherDashboard(studentsRaw) {
+    if (!studentsRaw) studentsRaw = getAllStudentsData();
+    const students = Object.entries(studentsRaw).map(
         ([name, data]) => calcStudentSummary(name, data)
     );
 
@@ -285,14 +348,46 @@ function renderWeakStudentsByLevel() {
 }
 
 // ─────────────────────────────────────────────────────────
-// CSV 내보내기
+// 유틸리티
 // ─────────────────────────────────────────────────────────
 
 /**
+ * XSS 방지를 위한 HTML 이스케이프
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHTML(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * 대시보드를 새로고침합니다.
+ * Firebase 설정 시 클라우드 데이터를 다시 불러옵니다.
+ */
+async function refreshDashboard() {
+    const container = document.getElementById('teacher-content');
+    if (!container) return;
+    container.innerHTML = `
+        <div style="text-align:center;padding:40px;color:var(--txt-dim);">
+            <div class="spinner"></div>
+            <p style="margin-top:16px">학생 데이터를 불러오는 중...</p>
+        </div>`;
+    const merged = await getMergedStudentsData();
+    container.innerHTML = renderTeacherDashboard(merged);
+}
+
+/**
  * 학생 데이터를 CSV 형식으로 내보냅니다.
+ * 마지막으로 로드된 병합 데이터를 사용합니다.
  */
 function downloadCSV() {
-    const studentsRaw = getAllStudentsData();
+    // 가장 최근 병합 데이터 사용 (없으면 로컬 데이터)
+    const studentsRaw = _lastTeacherData || getAllStudentsData();
     const students    = Object.entries(studentsRaw).map(
         ([name, data]) => calcStudentSummary(name, data)
     );
@@ -322,14 +417,14 @@ function downloadCSV() {
         `"${st.characterName}"`
     ]);
 
-    const csvContent = '\uFEFF' + // BOM for Excel Korean support
+    const csvContent = '\uFEFF' +
         [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
     const link = document.createElement('a');
 
-    const today = new Date();
+    const today   = new Date();
     const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
 
     link.href     = url;
@@ -338,41 +433,26 @@ function downloadCSV() {
     URL.revokeObjectURL(url);
 }
 
-// ─────────────────────────────────────────────────────────
-// 유틸리티
-// ─────────────────────────────────────────────────────────
-
 /**
- * XSS 방지를 위한 HTML 이스케이프
- * @param {string} str
- * @returns {string}
+ * 전체 데이터 삭제 — 로컬 + Firebase 모두 삭제
  */
-function escapeHTML(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
+async function confirmDeleteAll() {
+    if (!confirm('⚠️ 모든 학생 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
 
-/**
- * 대시보드를 새로고침합니다 (script.js에서 호출).
- */
-function refreshDashboard() {
-    const container = document.getElementById('teacher-content');
-    if (container) {
-        container.innerHTML = renderTeacherDashboard();
+    // 로컬 삭제
+    localStorage.removeItem('fractionMaster');
+    _lastTeacherData = null;
+
+    // Firebase 삭제 (설정된 경우)
+    const fbUrl = (typeof FIREBASE_URL !== 'undefined') ? FIREBASE_URL : '';
+    if (fbUrl) {
+        try {
+            await fetch(`${fbUrl}/fractionMaster.json`, { method: 'DELETE' });
+        } catch {
+            // 실패해도 계속 진행
+        }
     }
-}
 
-/**
- * 전체 데이터 삭제 확인
- */
-function confirmDeleteAll() {
-    if (confirm('⚠️ 모든 학생 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
-        localStorage.removeItem('fractionMaster');
-        refreshDashboard();
-        alert('모든 데이터가 삭제되었습니다.');
-    }
+    await refreshDashboard();
+    alert('모든 데이터가 삭제되었습니다.');
 }

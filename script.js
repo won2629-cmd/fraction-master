@@ -542,14 +542,24 @@ function initNotesScreen() {
     }).join('');
 }
 
-function initTeacherScreen() {
+async function initTeacherScreen() {
     const loginCard = document.getElementById('teacher-login-card');
     const content   = document.getElementById('teacher-content');
 
     if (isTeacherSessionValid()) {
         loginCard.style.display = 'none';
         content.style.display   = 'block';
-        content.innerHTML       = renderTeacherDashboard();
+
+        // 로딩 표시 (클라우드 데이터 수신 중)
+        content.innerHTML = `
+            <div style="text-align:center;padding:40px;color:var(--txt-dim);">
+                <div class="spinner"></div>
+                <p style="margin-top:16px;">학생 데이터를 불러오는 중…</p>
+            </div>`;
+
+        // 로컬 + 클라우드 병합 데이터로 대시보드 렌더링
+        const merged = await getMergedStudentsData();
+        content.innerHTML = renderTeacherDashboard(merged);
     } else {
         loginCard.style.display = 'block';
         content.style.display   = 'none';
