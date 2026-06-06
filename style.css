@@ -1304,22 +1304,36 @@ body {
     margin-bottom: 4px;
 }
 
-/* 뒤로가기 버튼 */
+/* 뒤로가기 / 맵으로 버튼 — 명확히 보이는 필 버튼 */
 .back-btn {
     align-self: flex-start;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    background: none;
-    border: none;
-    color: var(--txt-dim);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1.5px solid rgba(255, 255, 255, 0.28);
+    border-radius: 50px;
+    color: var(--txt-white);
     font-family: var(--font-main);
-    font-size: 0.95rem;
+    font-size: 1rem;
+    font-weight: 700;
     cursor: pointer;
-    padding: 8px 0;
-    transition: color 0.2s, transform 0.2s;
+    padding: 12px 22px;
+    min-height: 46px;
+    transition: background 0.18s, border-color 0.18s,
+                transform 0.18s var(--ease-bounce), box-shadow 0.18s;
+    backdrop-filter: blur(8px);
+    white-space: nowrap;
 }
-.back-btn:hover { color: var(--txt-white); transform: translateX(-3px); }
+.back-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateX(-4px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+.back-btn:active {
+    transform: scale(0.95);
+}
 
 /* 토스트 알림 */
 #toast {

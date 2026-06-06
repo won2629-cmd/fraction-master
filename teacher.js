@@ -4,7 +4,7 @@
  * 교사가 학생들의 학습 현황을 확인하고 관리할 수 있는
  * 대시보드 기능을 제공합니다.
  *
- * 비밀번호: 1234
+ * 비밀번호: 3699
  */
 
 'use strict';
@@ -14,7 +14,7 @@
 // ─────────────────────────────────────────────────────────
 
 const TEACHER_CONFIG = {
-    PASSWORD: '1234',
+    PASSWORD: '3699',
     MAX_LOGIN_ATTEMPTS: 5,
     SESSION_KEY: 'fm_teacher_session'
 };

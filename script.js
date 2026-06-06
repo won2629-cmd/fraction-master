@@ -269,11 +269,16 @@ function initMapScreen() {
     const studentData = getCurrentStudentData();
     if (!studentData) return;
 
+    const curLevelRaw = studentData.currentLevel || 1;
+    const isAllDone   = curLevelRaw > TOTAL_LEVELS;
+    const displayLevel = Math.min(curLevelRaw, TOTAL_LEVELS);
+
     // 캐릭터 표시
-    const char = getCharacterInfo(studentData.currentLevel);
+    const char = getCharacterInfo(curLevelRaw);
     document.getElementById('char-icon').textContent   = char.icon;
     document.getElementById('char-name').textContent   = char.name;
-    document.getElementById('char-level-label').textContent = `레벨 ${studentData.currentLevel}`;
+    document.getElementById('char-level-label').textContent =
+        isAllDone ? '전체 완료 👑' : `레벨 ${displayLevel}`;
     document.getElementById('map-greeting').textContent = `${gameState.currentStudent}의 모험 🗺️`;
 
     // XP 바
@@ -427,7 +432,7 @@ function initTeacherScreen() {
 // ─────────────────────────────────────────────────────────
 
 function updateHUD(studentData) {
-    document.getElementById('hud-level-val').textContent   = studentData.currentLevel  || 1;
+    document.getElementById('hud-level-val').textContent   = Math.min(studentData.currentLevel  || 1, TOTAL_LEVELS);
     document.getElementById('hud-xp-val').textContent      = studentData.totalXP       || 0;
     document.getElementById('hud-correct-val').textContent = studentData.correctCount  || 0;
     document.getElementById('hud-wrong-val').textContent   = studentData.wrongCount    || 0;
@@ -477,15 +482,16 @@ function clearCurrentStudent() {
 // ─────────────────────────────────────────────────────────
 
 function renderLevelGrid(studentData) {
-    const grid     = document.getElementById('level-grid');
-    const curLevel = studentData.currentLevel || 1;
-    const lp       = studentData.levelProgress || {};
+    const grid      = document.getElementById('level-grid');
+    const curLevel  = studentData.currentLevel || 1;
+    const isAllDone = curLevel > TOTAL_LEVELS;
+    const lp        = studentData.levelProgress || {};
 
     let html = '';
     for (let lv = 1; lv <= TOTAL_LEVELS; lv++) {
-        const isUnlocked  = lv <= curLevel;
+        const isUnlocked  = isAllDone || lv <= curLevel;  // 전체 완료시 전부 해금
         const isCompleted = lp[lv] && lp[lv].completed;
-        const isCurrent   = lv === curLevel;
+        const isCurrent   = !isAllDone && lv === curLevel; // 전체 완료시 'current' 없음
 
         const p   = lp[lv] || { correct: 0, wrong: 0 };
         const tot = (p.correct || 0) + (p.wrong || 0);
@@ -789,14 +795,18 @@ function finishLevel() {
     let leveledUp   = false;
     let newCharacter = false;
 
-    if (accuracy >= 70 && level >= prevLevel && level < TOTAL_LEVELS) {
-        studentData.currentLevel = level + 1;
-        leveledUp = true;
-
-        // 캐릭터 진화 체크
-        const prevChar = getCharacterInfo(prevLevel);
-        const newChar  = getCharacterInfo(level + 1);
-        newCharacter = (prevChar.name !== newChar.name);
+    if (accuracy >= 70 && level >= prevLevel) {
+        if (level < TOTAL_LEVELS) {
+            // 중간 레벨 통과 → 다음 레벨 해금
+            studentData.currentLevel = level + 1;
+            leveledUp = true;
+            const prevChar = getCharacterInfo(prevLevel);
+            const newChar  = getCharacterInfo(level + 1);
+            newCharacter = (prevChar.name !== newChar.name);
+        } else {
+            // 마지막 레벨(11) 통과 → 전체 완료 마킹
+            studentData.currentLevel = TOTAL_LEVELS + 1;
+        }
     }
 
     studentData.maxLevel = Math.max(studentData.maxLevel || 1, studentData.currentLevel);
@@ -852,13 +862,17 @@ function showResultScreen(level, correct, total, accuracy, bonusXP, leveledUp, n
 
     // 다음 레벨 버튼
     const nextBtn = document.getElementById('btn-result-next');
-    if (gameState.currentLevel < TOTAL_LEVELS && (studentData.currentLevel || 1) > level) {
+    const studentNextLevel = studentData.currentLevel || 1;
+    if (gameState.currentLevel < TOTAL_LEVELS && studentNextLevel > level) {
+        // 중간 레벨 통과 → 다음 레벨 버튼
         nextBtn.style.display = 'flex';
         nextBtn.textContent   = `레벨 ${level + 1} 도전! 🚀`;
-    } else if (gameState.currentLevel >= TOTAL_LEVELS) {
+    } else if (gameState.currentLevel >= TOTAL_LEVELS && studentNextLevel > TOTAL_LEVELS) {
+        // 마지막 레벨(11) 통과 → 전체 완료 버튼 (맵으로 이동)
         nextBtn.style.display = 'flex';
-        nextBtn.textContent   = '🏆 분수 마스터 완료!';
+        nextBtn.textContent   = '🏆 완료! 맵으로 돌아가기';
     } else {
+        // 정확도 부족(재도전 필요) → 다음 버튼 없음
         nextBtn.style.display = 'none';
     }
 
@@ -881,6 +895,15 @@ function showResultScreen(level, correct, total, accuracy, bonusXP, leveledUp, n
 function goToNextLevel() {
     const studentData = getCurrentStudentData();
     if (!studentData) return;
+    // 전체 완료 상태 (currentLevel이 11을 초과)
+    if ((studentData.currentLevel || 1) > TOTAL_LEVELS) {
+        showScreen('map');
+        setTimeout(() => {
+            showToast('🏆 모든 레벨을 완료했어요! 분수 마스터!');
+            spawnParticles();
+        }, 400);
+        return;
+    }
     startLevel(studentData.currentLevel || 1);
 }
 
