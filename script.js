@@ -125,7 +125,7 @@ async function syncFromCloud(name) {
     const local = data.students[name];
 
     if (!cloudData) {
-        // Firebase에 데이터 없음 → 로컬 데이터를 Firebase에 업로드
+        // Firebase에 데이터 없음 → 로컬(PIN 포함) 업로드
         if (local) saveStudentToCloud(name, local).catch(() => {});
         return;
     }
@@ -133,7 +133,7 @@ async function syncFromCloud(name) {
     const merged = mergeStudentData(local, cloudData);
 
     if (merged !== local) {
-        // 클라우드가 더 진행됨 → 로컬 갱신 후 화면 업데이트
+        // 클라우드가 더 진행됨 → 로컬 갱신
         data.students[name] = merged;
         saveData(data);
         if (gameState.currentStudent === name) {
@@ -144,11 +144,12 @@ async function syncFromCloud(name) {
                 showToast('☁️ 다른 기기 기록으로 동기화됐어요!');
             }
         }
-    } else {
-        // 로컬이 더 진행됐거나 동일 → Firebase 업데이트
-        if (merged !== cloudData) {
-            saveStudentToCloud(name, local).catch(() => {});
-        }
+    }
+
+    // 병합 결과(PIN 포함)를 항상 Firebase에 올림
+    // → 한 기기에서 설정한 PIN이 다른 기기에서도 인식되도록
+    if (merged !== cloudData) {
+        saveStudentToCloud(name, merged).catch(() => {});
     }
 }
 
@@ -620,7 +621,7 @@ function updateHUD(studentData) {
 // 이름 입력 & 프로필 선택
 // ─────────────────────────────────────────────────────────
 
-function confirmName() {
+async function confirmName() {
     const input = document.getElementById('name-input');
     const name  = input.value.trim();
     if (!name) { input.focus(); showToast('이름을 입력해주세요! 😊'); return; }
@@ -628,16 +629,38 @@ function confirmName() {
     const data     = loadData();
     const existing = data.students && data.students[name];
 
-    if (!existing) {
-        // 신규 학생 → PIN 설정
-        openPin('setup', name);
-    } else if (!existing.pin) {
-        // 기존 학생인데 PIN 없음 → PIN 설정 (업그레이드)
-        openPin('setup', name);
-    } else {
-        // 기존 학생 + PIN 있음 → PIN 확인
+    // ① 로컬에 PIN 있음 → 바로 인증
+    if (existing && existing.pin) {
         openPin('verify', name);
+        return;
     }
+
+    // ② 로컬에 PIN 없음 → Firebase에서 먼저 확인
+    //    (다른 기기에서 이미 PIN을 설정했을 수 있음)
+    if (FIREBASE_URL) {
+        const startBtn = document.querySelector('#screen-name .btn-gold');
+        if (startBtn) { startBtn.disabled = true; startBtn.textContent = '확인 중...'; }
+
+        try {
+            const cloudData = await loadStudentFromCloud(name);
+            if (cloudData && cloudData.pin) {
+                // 클라우드에 PIN 있음 → 로컬에 저장 후 인증
+                const d = loadData();
+                if (!d.students[name]) d.students[name] = cloudData;
+                else Object.assign(d.students[name], cloudData);
+                saveData(d);
+                openPin('verify', name);
+                return;
+            }
+        } catch (e) {
+            // 클라우드 확인 실패 → 로컬 흐름으로 진행
+        } finally {
+            if (startBtn) { startBtn.disabled = false; startBtn.textContent = '시작하기 🚀'; }
+        }
+    }
+
+    // ③ 어디에도 PIN 없음 → 신규 설정
+    openPin('setup', name);
 }
 
 // ─────────────────────────────────────────────────────────
