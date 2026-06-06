@@ -33,7 +33,7 @@ const STORAGE_KEY = 'fractionMaster';
 //   5. 아래 FIREBASE_URL 에 붙여넣기 (끝에 / 없이)
 //
 // ▶ 비워두면 기기별 로컬 저장소만 사용합니다 (기존 방식 유지).
-const FIREBASE_URL = ''; // ← 여기에 Firebase URL 붙여넣기
+const FIREBASE_URL = 'https://fraction-master-67969-default-rtdb.firebaseio.com'; // ← 여기에 Firebase URL 붙여넣기
 
 /** 학생 이름을 Firebase 경로용 안전한 키로 변환 */
 function nameToKey(name) {
