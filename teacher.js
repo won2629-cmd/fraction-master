@@ -269,6 +269,7 @@ function renderTeacherDashboard(studentsRaw) {
                         <th>경험치</th>
                         <th>오답노트</th>
                         <th>취약 레벨</th>
+                        <th>삭제</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -283,6 +284,8 @@ function renderTeacherDashboard(studentsRaw) {
             const weakStr = st.weakLevels.length > 0
                 ? st.weakLevels.map(l => `Lv.${l}`).join(', ')
                 : '없음';
+            // 이름에 따옴표 포함 시 onclick 오류 방지
+            const safeName = escapeHTML(st.name).replace(/'/g, '&#39;');
             html += `
                 <tr>
                     <td class="td-name">${escapeHTML(st.name)}</td>
@@ -296,6 +299,12 @@ function renderTeacherDashboard(studentsRaw) {
                     <td class="td-center">${st.totalXP.toLocaleString()}</td>
                     <td class="td-center">${st.wrongNotesCount}</td>
                     <td class="td-weak">${weakStr}</td>
+                    <td class="td-center">
+                        <button class="btn-delete-student"
+                                onclick="confirmDeleteStudent('${safeName}')">
+                            🗑️
+                        </button>
+                    </td>
                 </tr>
             `;
         });
@@ -439,6 +448,46 @@ function downloadCSV() {
     link.download = `분수마스터_학생현황_${dateStr}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+}
+
+/**
+ * 특정 학생 데이터 삭제 — 로컬 + Firebase
+ */
+async function confirmDeleteStudent(name) {
+    if (!confirm(`⚠️ "${name}" 학생의 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+    // 로컬 삭제
+    try {
+        const raw = localStorage.getItem('fractionMaster');
+        if (raw) {
+            const data = JSON.parse(raw);
+            if (data.students && data.students[name]) {
+                delete data.students[name];
+                // 현재 로그인 학생이 삭제 대상이면 초기화
+                if (data.currentStudent === name) data.currentStudent = '';
+                localStorage.setItem('fractionMaster', JSON.stringify(data));
+            }
+        }
+    } catch (e) {
+        console.warn('로컬 삭제 오류:', e);
+    }
+
+    // Firebase 삭제
+    const fbUrl = (typeof FIREBASE_URL !== 'undefined') ? FIREBASE_URL : '';
+    if (fbUrl) {
+        try {
+            await fetch(
+                `${fbUrl}/fractionMaster/${encodeURIComponent(name).replace(/\./g, '%2E')}.json`,
+                { method: 'DELETE' }
+            );
+        } catch (e) {
+            console.warn('Firebase 삭제 오류:', e);
+        }
+    }
+
+    // 캐시 갱신 후 대시보드 새로고침
+    if (_lastTeacherData) delete _lastTeacherData[name];
+    await refreshDashboard();
 }
 
 /**

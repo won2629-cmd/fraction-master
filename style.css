@@ -1279,6 +1279,9 @@ body {
 .btn-refresh:hover { background: var(--bg-card-hover); }
 .btn-delete  { padding: 12px 20px; background: rgba(255,92,114,0.15); border: 1px solid rgba(255,92,114,0.3); color: var(--clr-red); border-radius: var(--radius-md); font-family: var(--font-main); font-size: 0.95rem; cursor: pointer; transition: background 0.2s; }
 .btn-delete:hover { background: rgba(255,92,114,0.25); }
+/* 개별 학생 삭제 버튼 (테이블 셀 안) */
+.btn-delete-student { background: none; border: none; font-size: 1rem; cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm); opacity: 0.5; transition: opacity 0.2s, background 0.2s; }
+.btn-delete-student:hover { opacity: 1; background: rgba(255,92,114,0.2); }
 
 .teacher-empty {
     text-align: center;
