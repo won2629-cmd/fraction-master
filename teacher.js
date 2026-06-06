@@ -269,7 +269,6 @@ function renderTeacherDashboard(studentsRaw) {
                         <th>경험치</th>
                         <th>오답노트</th>
                         <th>취약 레벨</th>
-                        <th>삭제</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -284,11 +283,15 @@ function renderTeacherDashboard(studentsRaw) {
             const weakStr = st.weakLevels.length > 0
                 ? st.weakLevels.map(l => `Lv.${l}`).join(', ')
                 : '없음';
-            // 이름에 따옴표 포함 시 onclick 오류 방지
             const safeName = escapeHTML(st.name).replace(/'/g, '&#39;');
             html += `
                 <tr>
-                    <td class="td-name">${escapeHTML(st.name)}</td>
+                    <td class="td-name">
+                        ${escapeHTML(st.name)}
+                        <button class="btn-delete-student"
+                                title="${safeName} 삭제"
+                                onclick="confirmDeleteStudent('${safeName}')">🗑️</button>
+                    </td>
                     <td class="td-center">레벨 ${st.currentLevel}</td>
                     <td class="td-character">${st.characterName}</td>
                     <td class="td-center" style="color:${accColor};font-weight:bold">
@@ -299,12 +302,6 @@ function renderTeacherDashboard(studentsRaw) {
                     <td class="td-center">${st.totalXP.toLocaleString()}</td>
                     <td class="td-center">${st.wrongNotesCount}</td>
                     <td class="td-weak">${weakStr}</td>
-                    <td class="td-center">
-                        <button class="btn-delete-student"
-                                onclick="confirmDeleteStudent('${safeName}')">
-                            🗑️
-                        </button>
-                    </td>
                 </tr>
             `;
         });
