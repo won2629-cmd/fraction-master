@@ -752,17 +752,22 @@ function renderQuestion() {
     const tot = gameState.questions.length;
 
     if (!q) {
-        finishLevel();
+        // 정답 10개 달성 후 도달하면 레벨 완료, 아니면 맵으로
+        if (gameState.correctCount >= QUESTIONS_PER_LEVEL) {
+            finishLevel();
+        } else {
+            showScreen('map');
+        }
         return;
     }
 
     gameState.answered = false;
 
-    // 진행 바
-    const pct = (idx / tot) * 100;
+    // 진행 바 — 문제 번호 대신 '정답 수 / 목표 10' 기준으로 표시
+    const pct = Math.min(100, (gameState.correctCount / QUESTIONS_PER_LEVEL) * 100);
     document.getElementById('progress-fill').style.width = pct + '%';
     document.getElementById('progress-label').textContent =
-        `${idx + 1} / ${tot}${gameState.retryMode ? ' (다시 풀기)' : ''}`;
+        `정답 ${gameState.correctCount} / ${QUESTIONS_PER_LEVEL}${gameState.retryMode ? ' (다시 풀기)' : ''}`;
     document.getElementById('progress-level-tag').textContent =
         `레벨 ${gameState.currentLevel} · ${LEVEL_NAMES[gameState.currentLevel]}`;
 
@@ -943,11 +948,21 @@ function nextQuestion() {
     gameState.retryMode     = false;
     gameState.retryQuestion = null;
 
-    if (gameState.questionIndex >= gameState.questions.length) {
+    // 정답 10개 달성 → 레벨 완료
+    if (gameState.correctCount >= QUESTIONS_PER_LEVEL) {
         finishLevel();
-    } else {
-        renderQuestion();
+        return;
     }
+
+    // 문제 풀이 중 문제가 더 필요하면 추가 생성
+    if (gameState.questionIndex >= gameState.questions.length) {
+        const more = getQuestions(gameState.currentLevel, QUESTIONS_PER_LEVEL);
+        if (more && more.length > 0) {
+            gameState.questions.push(...more);
+        }
+    }
+
+    renderQuestion();
 }
 
 // ─────────────────────────────────────────────────────────
@@ -955,15 +970,15 @@ function nextQuestion() {
 // ─────────────────────────────────────────────────────────
 
 function finishLevel() {
-    const level    = gameState.currentLevel;
-    const correct  = gameState.correctCount;
-    const wrong    = gameState.wrongCount;
-    const total    = correct + wrong;
-    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-    const isAllCorrect = (correct === QUESTIONS_PER_LEVEL && wrong === 0);
+    const level   = gameState.currentLevel;
+    const correct = gameState.correctCount; // 항상 10
+    const wrong   = gameState.wrongCount;
+    const total   = correct + wrong;
+    const accuracy     = total > 0 ? Math.round((correct / total) * 100) : 100;
+    const isAllCorrect = (wrong === 0);
 
-    // 레벨 보너스 XP
-    let bonusXP = isAllCorrect ? XP_PER_LEVEL_BONUS : Math.floor((accuracy / 100) * 50);
+    // XP: 실수 없이 클리어하면 보너스, 틀렸으면 시도 횟수에 반비례
+    let bonusXP = isAllCorrect ? XP_PER_LEVEL_BONUS : Math.max(10, Math.floor((correct / total) * XP_PER_LEVEL_BONUS));
     bonusXP = Math.max(0, bonusXP);
 
     const studentData = getCurrentStudentData();
@@ -981,29 +996,26 @@ function finishLevel() {
     // XP 추가
     studentData.totalXP = (studentData.totalXP || 0) + bonusXP;
 
-    // 레벨 업 체크
-    const prevLevel = studentData.currentLevel || 1;
-    let leveledUp   = false;
+    // 레벨 업 (정답 10개 달성 = 무조건 통과)
+    const prevLevel  = studentData.currentLevel || 1;
+    let leveledUp    = false;
     let newCharacter = false;
 
-    if (accuracy >= 70 && level >= prevLevel) {
+    if (level >= prevLevel) {
         if (level < TOTAL_LEVELS) {
-            // 중간 레벨 통과 → 다음 레벨 해금
             studentData.currentLevel = level + 1;
             leveledUp = true;
             const prevChar = getCharacterInfo(prevLevel);
             const newChar  = getCharacterInfo(level + 1);
             newCharacter = (prevChar.name !== newChar.name);
         } else {
-            // 마지막 레벨(11) 통과 → 전체 완료 마킹
             studentData.currentLevel = TOTAL_LEVELS + 1;
         }
     }
 
     studentData.maxLevel = Math.max(studentData.maxLevel || 1, studentData.currentLevel);
-    updateCurrentStudentData(studentData, true); // 레벨 완료 → 즉시 클라우드 저장
+    updateCurrentStudentData(studentData, true);
 
-    // 결과 화면 렌더링
     showResultScreen(level, correct, total, accuracy, bonusXP, leveledUp, newCharacter, studentData);
 }
 
@@ -1013,9 +1025,15 @@ function showResultScreen(level, correct, total, accuracy, bonusXP, leveledUp, n
     document.getElementById('result-emoji').textContent    = feedback.emoji;
     document.getElementById('result-title').textContent    = feedback.title;
     document.getElementById('result-title').className      =
-        `result-title ${accuracy >= 90 ? 'great' : accuracy >= 70 ? 'good' : accuracy >= 50 ? 'ok' : 'retry'}`;
-    document.getElementById('result-score').innerHTML      =
-        `${total}문제 중 <strong>${correct}</strong>문제 정답!`;
+        `result-title ${accuracy >= 90 ? 'great' : accuracy >= 70 ? 'good' : 'ok'}`;
+
+    // 결과 메시지: 틀린 게 없으면 "완벽!", 있으면 "N번 시도 끝에 10개 정답"
+    const wrong = total - correct;
+    document.getElementById('result-score').innerHTML =
+        wrong === 0
+            ? `완벽! <strong>10</strong>개 모두 정답! 🎉`
+            : `<strong>${total}</strong>번 시도 끝에 <strong>10</strong>개 정답!`;
+
     document.getElementById('result-xp').textContent       =
         `+${bonusXP} XP 획득! ⚡`;
 
@@ -1051,36 +1069,28 @@ function showResultScreen(level, correct, total, accuracy, bonusXP, leveledUp, n
         diagEl.innerHTML = '';
     }
 
-    // 다음 레벨 버튼
+    // 다음 레벨 버튼 — leveledUp 플래그 기준 (레플레이 구분)
     const nextBtn = document.getElementById('btn-result-next');
-    const studentNextLevel = studentData.currentLevel || 1;
-    if (gameState.currentLevel < TOTAL_LEVELS && studentNextLevel > level) {
-        // 중간 레벨 통과 → 다음 레벨 버튼
+    if (leveledUp && gameState.currentLevel < TOTAL_LEVELS) {
         nextBtn.style.display = 'flex';
         nextBtn.textContent   = `레벨 ${level + 1} 도전! 🚀`;
-    } else if (gameState.currentLevel >= TOTAL_LEVELS && studentNextLevel > TOTAL_LEVELS) {
-        // 마지막 레벨(11) 통과 → 전체 완료 버튼 (맵으로 이동)
+    } else if (leveledUp && gameState.currentLevel >= TOTAL_LEVELS) {
         nextBtn.style.display = 'flex';
         nextBtn.textContent   = '🏆 완료! 맵으로 돌아가기';
     } else {
-        // 정확도 부족(재도전 필요) → 다음 버튼 없음
+        // 이전 레벨 복습 완료
         nextBtn.style.display = 'none';
     }
 
     showScreen('result');
 
-    // 레벨업 오버레이
     if (leveledUp) {
         setTimeout(() => showLevelUp(level + 1, newCharacter), 600);
     }
 
-    // 효과음
-    playSound(accuracy >= 70 ? 'levelComplete' : 'tryAgain');
-
-    // 파티클
-    if (accuracy >= 70) {
-        setTimeout(() => spawnParticles(), 300);
-    }
+    // 항상 클리어 음악 재생
+    playSound('levelComplete');
+    setTimeout(() => spawnParticles(), 300);
 }
 
 function goToNextLevel() {
