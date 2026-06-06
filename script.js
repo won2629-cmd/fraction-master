@@ -19,7 +19,125 @@
 // ─────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'fractionMaster';
-const QUESTIONS_PER_LEVEL = 10;
+
+// ─────────────────────────────────────────────────────────
+// ☁️  Firebase 실시간 DB 동기화 (선택적)
+// ─────────────────────────────────────────────────────────
+//
+// ▶ 설정 방법 (같은 이름으로 모든 기기에서 기록 공유)
+//   1. https://console.firebase.google.com → 새 프로젝트 만들기
+//   2. 왼쪽 메뉴 → Realtime Database → "데이터베이스 만들기"
+//   3. 테스트 모드로 시작 → "완료" 클릭
+//   4. 상단에 표시되는 URL 복사
+//      예) https://my-project-default-rtdb.firebaseio.com
+//   5. 아래 FIREBASE_URL 에 붙여넣기 (끝에 / 없이)
+//
+// ▶ 비워두면 기기별 로컬 저장소만 사용합니다 (기존 방식 유지).
+const FIREBASE_URL = ''; // ← 여기에 Firebase URL 붙여넣기
+
+/** 학생 이름을 Firebase 경로용 안전한 키로 변환 */
+function nameToKey(name) {
+    // Firebase 경로에서 금지된 문자(. # $ / [ ]) 처리
+    return encodeURIComponent(name).replace(/\./g, '%2E');
+}
+
+/**
+ * Firebase에서 학생 데이터를 불러옵니다 (3초 타임아웃).
+ * 오프라인이거나 Firebase 미설정이면 null 반환.
+ */
+async function loadStudentFromCloud(name) {
+    if (!FIREBASE_URL) return null;
+    try {
+        const ctrl = new AbortController();
+        const tid  = setTimeout(() => ctrl.abort(), 3000);
+        const res  = await fetch(
+            `${FIREBASE_URL}/fractionMaster/${nameToKey(name)}.json`,
+            { signal: ctrl.signal }
+        );
+        clearTimeout(tid);
+        if (!res.ok) return null;
+        return await res.json(); // 데이터 없으면 null
+    } catch {
+        return null; // 오프라인 / 타임아웃 → 조용히 무시
+    }
+}
+
+/**
+ * 학생 데이터를 Firebase에 저장합니다 (비동기, 실패 무시).
+ */
+async function saveStudentToCloud(name, studentData) {
+    if (!FIREBASE_URL || !name || !studentData) return;
+    try {
+        await fetch(
+            `${FIREBASE_URL}/fractionMaster/${nameToKey(name)}.json`,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(studentData),
+                keepalive: true  // 페이지 닫힌 뒤에도 요청 완료
+            }
+        );
+    } catch {
+        // 저장 실패해도 로컬엔 저장됐으므로 무시
+    }
+}
+
+/**
+ * 로컬 vs 클라우드 중 더 진행된 데이터를 반환합니다.
+ * 기준: totalXP가 더 높은 쪽 (둘 다 없으면 cloud 우선)
+ */
+function mergeStudentData(local, cloud) {
+    if (!local) return cloud;
+    if (!cloud) return local;
+    return (cloud.totalXP || 0) >= (local.totalXP || 0) ? cloud : local;
+}
+
+// 클라우드 저장 디바운스 타이머 (잦은 저장 방지 — 마지막 후 3초)
+let _cloudSaveTimer = null;
+
+function scheduleCloudSave(name, studentData) {
+    if (!FIREBASE_URL) return;
+    if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
+    _cloudSaveTimer = setTimeout(() => {
+        saveStudentToCloud(name, studentData).catch(() => {});
+        _cloudSaveTimer = null;
+    }, 3000);
+}
+
+function flushCloudSave(name, studentData) {
+    if (!FIREBASE_URL) return;
+    if (_cloudSaveTimer) { clearTimeout(_cloudSaveTimer); _cloudSaveTimer = null; }
+    saveStudentToCloud(name, studentData).catch(() => {});
+}
+
+/**
+ * 클라우드와 백그라운드 동기화.
+ * 클라우드가 더 최신이면 로컬을 갱신하고 맵 화면을 업데이트합니다.
+ */
+async function syncFromCloud(name) {
+    const cloudData = await loadStudentFromCloud(name);
+    if (!cloudData) return;
+
+    const data  = loadData();
+    const local = data.students[name];
+    const merged = mergeStudentData(local, cloudData);
+
+    if (merged !== local) {
+        // 클라우드 데이터가 더 진행됨 → 로컬 갱신
+        data.students[name] = merged;
+        saveData(data);
+        if (gameState.currentStudent === name) {
+            const mapActive = document.getElementById('screen-map')
+                                      .classList.contains('active');
+            if (mapActive) {
+                initMapScreen();
+                showToast('☁️ 다른 기기 기록으로 동기화됐어요!');
+            }
+        }
+    }
+}
+
+
 const XP_PER_CORRECT = 10;
 const XP_PER_LEVEL_BONUS = 100;
 const XP_PER_LEVEL = 200; // 레벨 진행도 표시용
@@ -125,7 +243,13 @@ function getCurrentStudentData() {
 }
 
 /** 현재 학생 데이터를 업데이트합니다 */
-function updateCurrentStudentData(updates) {
+/**
+ * 현재 학생 데이터를 업데이트합니다.
+ * @param {object}  updates   - 업데이트할 데이터
+ * @param {boolean} saveNow   - true: 즉시 클라우드 저장 (레벨 완료 시)
+ *                              false: 3초 디바운스 후 저장 (문제 풀이 중)
+ */
+function updateCurrentStudentData(updates, saveNow = false) {
     const data = loadData();
     const name = gameState.currentStudent;
     if (!name) return;
@@ -135,6 +259,13 @@ function updateCurrentStudentData(updates) {
     Object.assign(data.students[name], updates);
     data.students[name].lastPlayed = new Date().toLocaleDateString('ko-KR');
     saveData(data);
+
+    // 클라우드 동기화
+    if (saveNow) {
+        flushCloudSave(name, data.students[name]);   // 즉시 저장
+    } else {
+        scheduleCloudSave(name, data.students[name]); // 디바운스 저장
+    }
 }
 
 /** 오답을 노트에 추가합니다 */
@@ -458,29 +589,40 @@ function confirmName() {
     selectProfile(name);
 }
 
-function selectProfile(name) {
+async function selectProfile(name, quiet = false) {
     gameState.currentStudent = name;
 
-    const data = loadData();
+    const data  = loadData();
     const isNew = !data.students[name];
     if (isNew) {
         data.students[name] = createDefaultStudentData();
     }
-    // 마지막 로그인 학생 기억 (페이지 재진입 시 자동 복원용)
+    // 마지막 로그인 학생을 localStorage에 기억
     data.currentStudent = name;
     saveData(data);
 
-    showToast(isNew ? `${name}님, 환영해요! 🎉` : `다시 오셨군요, ${name}님! 👋`);
-    showScreen('map');
+    if (!quiet) {
+        showToast(isNew ? `${name}님, 환영해요! 🎉` : `다시 오셨군요, ${name}님! 👋`);
+    }
+    showScreen('map'); // 먼저 로컬 데이터로 즉시 표시
+
+    // 백그라운드 클라우드 동기화 (비블로킹)
+    // 다른 기기에서 더 진행됐으면 맵이 자동으로 갱신됨
+    if (FIREBASE_URL) syncFromCloud(name);
 }
 
 function clearCurrentStudent() {
+    // 남은 클라우드 저장 즉시 실행 후 초기화
+    if (_cloudSaveTimer && gameState.currentStudent) {
+        const data = loadData();
+        flushCloudSave(gameState.currentStudent, data.students[gameState.currentStudent]);
+    }
     gameState.currentStudent = '';
-    // localStorage에서도 마지막 학생 기억 해제
     const data = loadData();
     data.currentStudent = '';
     saveData(data);
 }
+
 
 // ─────────────────────────────────────────────────────────
 // 레벨 맵
@@ -815,7 +957,7 @@ function finishLevel() {
     }
 
     studentData.maxLevel = Math.max(studentData.maxLevel || 1, studentData.currentLevel);
-    updateCurrentStudentData(studentData);
+    updateCurrentStudentData(studentData, true); // 레벨 완료 → 즉시 클라우드 저장
 
     // 결과 화면 렌더링
     showResultScreen(level, correct, total, accuracy, bonusXP, leveledUp, newCharacter, studentData);
@@ -1451,7 +1593,7 @@ document.addEventListener('keydown', (e) => {
 // 이름 입력 엔터 키
 // ─────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const nameInput = document.getElementById('name-input');
     if (nameInput) {
         nameInput.addEventListener('keydown', (e) => {
@@ -1467,11 +1609,19 @@ document.addEventListener('DOMContentLoaded', () => {
         getAudioCtx();
     }, { once: true });
 
+    // 페이지 닫힐 때 대기 중인 클라우드 저장 즉시 실행
+    window.addEventListener('beforeunload', () => {
+        if (_cloudSaveTimer && gameState.currentStudent) {
+            const data = loadData();
+            flushCloudSave(gameState.currentStudent, data.students[gameState.currentStudent]);
+        }
+    });
+
     // 마지막 로그인 학생 자동 복원
     // 이전에 플레이하다 닫았으면 이름 입력 없이 바로 맵으로 이동
+    // FIREBASE_URL 설정 시 클라우드에서 최신 기록도 백그라운드 동기화
     const data = loadData();
     if (data.currentStudent && data.students[data.currentStudent]) {
-        gameState.currentStudent = data.currentStudent;
-        showScreen('map');  // 메인 화면 건너뛰고 바로 맵으로
+        await selectProfile(data.currentStudent, true); // quiet=true (토스트 없이 조용히 복원)
     }
 });
