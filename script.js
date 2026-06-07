@@ -1366,7 +1366,7 @@ function renderTextWithFractions(text) {
     if (!text) return '';
     // 분수 패턴: 숫자/숫자, □/숫자, 숫자/□, □/□ 모두 잡기
     // □ = U+25A1 (빈 칸 기호), □ = U+25A2 (빈 네모)
-    return text.split(/([\d□□]+\/[\d□□]+)/).map((part, i) => {
+    return text.split(/([\d\u25A1]+\/[\d\u25A1]+)/).map((part, i) => {
         if (i % 2 === 1) {
             const [num, den] = part.split('/');
             return makeInlineFracHTML(num, den);
@@ -1407,20 +1407,20 @@ function renderOptionText(str) {
     const s = String(str).trim();
 
     // ① 순수 분수: "3/4", "□/8", "4/□"
-    if (/^[\d□□]+\/[\d□□]+$/.test(s)) {
+    if (/^[\d\u25A1\u25A1]+\/[\d\u25A1\u25A1]+$/.test(s)) {
         const [n, d] = s.split('/');
         return makeOptFracHTML(n, d);
     }
 
     // ② 분수 + 한국어 접미사: "5/3만", "□/6만"
-    const fracSuffix = /^([\d□□]+\/[\d□□]+)(만|도|은|는)$/.exec(s);
+    const fracSuffix = /^([\d\u25A1\u25A1]+\/[\d\u25A1\u25A1]+)(만|도|은|는)$/.exec(s);
     if (fracSuffix) {
         return makeOptFracHTML(...fracSuffix[1].split('/')) +
                `<span class="opt-text">${fracSuffix[2]}</span>`;
     }
 
     // ③ 두 분수 + 와/과
-    const twoFracKo = /^([\d□□]+\/[\d□□]+)\s*(와|과)\s*([\d□□]+\/[\d□□]+)$/.exec(s);
+    const twoFracKo = /^([\d\u25A1\u25A1]+\/[\d\u25A1\u25A1]+)\s*(와|과)\s*([\d\u25A1\u25A1]+\/[\d\u25A1\u25A1]+)$/.exec(s);
     if (twoFracKo) {
         return `<span class="opt-pair">` +
             renderSingleFrac(twoFracKo[1]) +
@@ -1430,7 +1430,7 @@ function renderOptionText(str) {
     }
 
     // ④ 두 분수 + 산술 연산자
-    const twoFracOp = /^([\d□□]+\/[\d□□]+)\s*([+\-])\s*([\d□□]+\/[\d□□]+)$/.exec(s);
+    const twoFracOp = /^([\d\u25A1\u25A1]+\/[\d\u25A1\u25A1]+)\s*([+\-])\s*([\d\u25A1\u25A1]+\/[\d\u25A1\u25A1]+)$/.exec(s);
     if (twoFracOp) {
         return `<span class="opt-pair">` +
             renderSingleFrac(twoFracOp[1]) +
@@ -1454,7 +1454,7 @@ function renderOptionText(str) {
 
 /** 단일 "N/D" 또는 "□/D" 문자열 → 시각 분수 HTML */
 function renderSingleFrac(str) {
-    const m = /^([\d□□]+)\/([\d□□]+)$/.exec(str.trim());
+    const m = /^([\d\u25A1\u25A1]+)\/([\d\u25A1\u25A1]+)$/.exec(str.trim());
     return m ? makeOptFracHTML(m[1], m[2]) : escapeHTML(str);
 }
 
