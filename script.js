@@ -383,7 +383,61 @@ function initMainScreen() {
     } else {
         container.style.display = 'none';
     }
+
+    // 백그라운드에서 Firebase와 비교 — 교사가 삭제한 학생을 로컬에서도 제거
+    if (FIREBASE_URL && students.length > 0) {
+        syncDeletedStudentsFromCloud(students);
+    }
 }
+
+/**
+ * Firebase에 존재하지 않는 로컬 학생을 제거합니다.
+ * 교사가 다른 기기에서 학생을 삭제했을 때 다른 기기의 빠른 시작 목록에서도 사라지게 합니다.
+ * 안전 장치: Firebase에 아무도 없으면 삭제 안 함 (접속 오류와 구분 불가)
+ */
+async function syncDeletedStudentsFromCloud(localNames) {
+    try {
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), 4000);
+        const res = await fetch(`${FIREBASE_URL}/fractionMaster.json`, { signal: ctrl.signal });
+        if (!res.ok) return;
+        const raw = await res.json();
+
+        // Firebase가 빈 DB거나 응답 없음 → 삭제 안 함 (오프라인 보호)
+        if (!raw || typeof raw !== 'object' || Object.keys(raw).length === 0) return;
+
+        // Firebase에 있는 학생 이름 목록
+        const cloudNames = new Set(
+            Object.keys(raw).map(key => { try { return decodeURIComponent(key); } catch { return key; } })
+        );
+
+        // 로컬에 있지만 Firebase에 없는 학생 제거
+        const data = loadData();
+        let removed = false;
+        localNames.forEach(name => {
+            if (!cloudNames.has(name)) {
+                delete data.students[name];
+                if (data.currentStudent === name) data.currentStudent = '';
+                removed = true;
+            }
+        });
+
+        if (removed) {
+            saveData(data);
+            // 메인 화면이 열려있으면 목록 갱신
+            if (document.getElementById('screen-main').classList.contains('active')) {
+                initMainScreen();
+            }
+            // 이름 선택 화면이 열려있으면 목록 갱신
+            if (document.getElementById('screen-name').classList.contains('active')) {
+                initNameScreen();
+            }
+        }
+    } catch (e) {
+        // 실패해도 무시 (오프라인 보호)
+    }
+}
+
 
 function initNameScreen() {
     const input = document.getElementById('name-input');
