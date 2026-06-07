@@ -748,11 +748,25 @@ async function pinComplete() {
     } else if (_pin.mode === 'setup-confirm') {
         // 2차 입력 → 일치 확인
         if (entered === _pin.firstPin) {
-            // 일치 → PIN 저장 후 입장
             document.getElementById('pin-modal').classList.remove('visible');
+
+            // ① 로컬 저장 (PIN 포함)
+            const d = loadData();
+            if (!d.students[_pin.name]) d.students[_pin.name] = createDefaultStudentData();
+            d.students[_pin.name].pin = entered;
+            d.currentStudent = _pin.name;
+            saveData(d);
+
+            // ② Firebase에 즉시 업로드 (await — 다른 기기에서 바로 사용 가능하도록)
+            if (FIREBASE_URL) {
+                try {
+                    await saveStudentToCloud(_pin.name, d.students[_pin.name]);
+                } catch (e) { /* 실패해도 로컬엔 저장됨 */ }
+            }
+
+            // ③ 나머지 selectProfile 진행 (클라우드 데이터 병합 + 맵 표시)
             await selectProfile(_pin.name, false, entered);
         } else {
-            // 불일치
             document.getElementById('pin-error').textContent = '숫자가 다릅니다. 처음부터 다시 눌러주세요.';
             _pin.mode     = 'setup';
             _pin.firstPin = null;
@@ -1350,15 +1364,13 @@ function closeLevelUp() {
  */
 function renderTextWithFractions(text) {
     if (!text) return '';
-    // /(\d+\/\d+)/ 의 캡처 그룹으로 split하면
-    // 짝수 인덱스 = 일반 텍스트, 홀수 인덱스 = 분수
-    return text.split(/(\d+\/\d+)/).map((part, i) => {
+    // 분수 패턴: 숫자/숫자, □/숫자, 숫자/□, □/□ 모두 잡기
+    // □ = U+25A1 (빈 칸 기호), □ = U+25A2 (빈 네모)
+    return text.split(/([\d□□]+\/[\d□□]+)/).map((part, i) => {
         if (i % 2 === 1) {
-            // 분수 부분
             const [num, den] = part.split('/');
             return makeInlineFracHTML(num, den);
         }
-        // 일반 텍스트: HTML 이스케이프 + 줄바꿈 처리
         return escapeHTML(part).replace(/\n/g, '<br>');
     }).join('');
 }
@@ -1394,21 +1406,21 @@ function renderOptionText(str) {
     if (!str && str !== 0) return '';
     const s = String(str).trim();
 
-    // ① 순수 분수: "3/4", "12/15"
-    if (/^\d+\/\d+$/.test(s)) {
+    // ① 순수 분수: "3/4", "□/8", "4/□"
+    if (/^[\d□□]+\/[\d□□]+$/.test(s)) {
         const [n, d] = s.split('/');
         return makeOptFracHTML(n, d);
     }
 
-    // ② 분수 + 한국어 접미사: "5/3만", "9/9만"
-    const fracSuffix = /^(\d+)\/(\d+)(만|도|은|는)$/.exec(s);
+    // ② 분수 + 한국어 접미사: "5/3만", "□/6만"
+    const fracSuffix = /^([\d□□]+\/[\d□□]+)(만|도|은|는)$/.exec(s);
     if (fracSuffix) {
-        return makeOptFracHTML(fracSuffix[1], fracSuffix[2]) +
-               `<span class="opt-text">${fracSuffix[3]}</span>`;
+        return makeOptFracHTML(...fracSuffix[1].split('/')) +
+               `<span class="opt-text">${fracSuffix[2]}</span>`;
     }
 
-    // ③ 두 분수 + 와/과: "4/12와 3/12", "5/3과 9/9"
-    const twoFracKo = /^(\d+\/\d+)\s*(와|과)\s*(\d+\/\d+)$/.exec(s);
+    // ③ 두 분수 + 와/과
+    const twoFracKo = /^([\d□□]+\/[\d□□]+)\s*(와|과)\s*([\d□□]+\/[\d□□]+)$/.exec(s);
     if (twoFracKo) {
         return `<span class="opt-pair">` +
             renderSingleFrac(twoFracKo[1]) +
@@ -1417,8 +1429,8 @@ function renderOptionText(str) {
             `</span>`;
     }
 
-    // ④ 두 분수 + 산술 연산자: "1/3 + 1/4", "3/4 - 1/6"
-    const twoFracOp = /^(\d+\/\d+)\s*([+\-])\s*(\d+\/\d+)$/.exec(s);
+    // ④ 두 분수 + 산술 연산자
+    const twoFracOp = /^([\d□□]+\/[\d□□]+)\s*([+\-])\s*([\d□□]+\/[\d□□]+)$/.exec(s);
     if (twoFracOp) {
         return `<span class="opt-pair">` +
             renderSingleFrac(twoFracOp[1]) +
@@ -1427,7 +1439,7 @@ function renderOptionText(str) {
             `</span>`;
     }
 
-    // ⑤ 대분수: "1 2/3"
+    // ⑤ 대분수
     const mixed = /^(\d+)\s+(\d+)\/(\d+)$/.exec(s);
     if (mixed) {
         return `<span class="opt-mixed">` +
@@ -1440,9 +1452,9 @@ function renderOptionText(str) {
     return escapeHTML(s);
 }
 
-/** 단일 "N/D" 문자열 → 시각 분수 HTML (내부 헬퍼) */
+/** 단일 "N/D" 또는 "□/D" 문자열 → 시각 분수 HTML */
 function renderSingleFrac(str) {
-    const m = /^(\d+)\/(\d+)$/.exec(str.trim());
+    const m = /^([\d□□]+)\/([\d□□]+)$/.exec(str.trim());
     return m ? makeOptFracHTML(m[1], m[2]) : escapeHTML(str);
 }
 
