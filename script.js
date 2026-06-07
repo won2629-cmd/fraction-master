@@ -1092,23 +1092,19 @@ function selectOption(idx) {
 }
 
 function handleCorrectAnswer(q) {
-    // 정답 피드백
-    const feedback  = document.getElementById('feedback-area');
-    const feedTitle = document.getElementById('feedback-title');
-    const feedHint  = document.getElementById('feedback-hint');
-
-    const correctMsgs = ['🎉 정답이에요!', '⭐ 훌륭해요!', '✨ 맞았어요!', '👏 완벽해요!'];
-    feedTitle.textContent = correctMsgs[Math.floor(Math.random() * correctMsgs.length)];
-    feedHint.innerHTML = '';
-    feedback.className    = 'feedback-area correct-feedback visible';
+    // 하단 피드백 숨기기 (정답 시 중앙 플래시로 대체)
+    document.getElementById('feedback-area').className = 'feedback-area';
+    // 다음 버튼 숨기기 (자동 진행)
+    const nextBtn = document.getElementById('btn-next');
+    if (nextBtn) nextBtn.style.display = 'none';
 
     // 효과음
     playSound('correct');
 
-    // XP 더하기
+    // XP 업데이트
     const studentData = getCurrentStudentData();
     if (studentData) {
-        studentData.totalXP    = (studentData.totalXP    || 0) + XP_PER_CORRECT;
+        studentData.totalXP      = (studentData.totalXP      || 0) + XP_PER_CORRECT;
         studentData.correctCount = (studentData.correctCount || 0) + 1;
         updateCurrentStudentData(studentData);
         updateHUD(studentData);
@@ -1128,9 +1124,36 @@ function handleCorrectAnswer(q) {
         removeNoteAfterCorrect(q.question, gameState.currentLevel);
     }
 
-    // +XP 파티클
-    showXpFloat(XP_PER_CORRECT);
+    // 중앙 정답 플래시 표시 후 자동 다음 문제
+    const msgs = [
+        { e: '🎉', t: '정답이에요!' },
+        { e: '⭐', t: '훌륭해요!'   },
+        { e: '✨', t: '맞았어요!'   },
+        { e: '👏', t: '완벽해요!'   },
+        { e: '🌟', t: '최고예요!'   },
+    ];
+    const m = msgs[Math.floor(Math.random() * msgs.length)];
+    showCorrectFlash(m.e, m.t, XP_PER_CORRECT);
+
+    // 1.3초 후 자동 다음 문제 (플래시 사라지는 타이밍과 맞춤)
+    setTimeout(() => nextQuestion(), 1300);
 }
+
+/** 정답 중앙 플래시 오버레이를 잠깐 보여줍니다 */
+function showCorrectFlash(emoji, msg, xp) {
+    const el = document.getElementById('correct-flash');
+    if (!el) return;
+    document.getElementById('cf-emoji').textContent = emoji;
+    document.getElementById('cf-msg').textContent   = msg;
+    document.getElementById('cf-xp').textContent    = `+${xp} XP ⚡`;
+
+    el.className = 'correct-flash show';
+    // 0.9초 후 fade-out 시작
+    setTimeout(() => { el.className = 'correct-flash hiding'; }, 900);
+    // 1.3초 후 완전히 숨기기
+    setTimeout(() => { el.className = 'correct-flash'; }, 1300);
+}
+
 
 function handleWrongAnswer(q, myAnswerIdx) {
     // 오답 피드백

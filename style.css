@@ -1765,3 +1765,45 @@ tr:hover .btn-delete-student:hover { opacity: 1; background: rgba(255,92,114,0.2
 .pin-back   { font-size: 1.1rem; color: var(--txt-dim); }
 .pin-cancel { font-size: 0.85rem; color: var(--txt-dim); }
 .pin-cancel:hover { color: var(--clr-red); }
+
+/* ─────────────────────────────────────────────────────────
+   정답 중앙 플래시 오버레이
+───────────────────────────────────────────────────────── */
+.correct-flash {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.correct-flash.show   { opacity: 1; }
+.correct-flash.hiding { opacity: 0; transition: opacity 0.35s; }
+
+.cf-inner {
+    background: linear-gradient(135deg, #2ed573cc, #1abc9ccc);
+    backdrop-filter: blur(4px);
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 28px;
+    padding: 28px 52px 24px;
+    text-align: center;
+    box-shadow: 0 12px 48px rgba(46,213,115,0.45), 0 0 0 6px rgba(46,213,115,0.15);
+    animation: cfPop 0.28s var(--ease-bounce) forwards;
+}
+
+@keyframes cfPop {
+    0%   { transform: scale(0.55); opacity: 0; }
+    65%  { transform: scale(1.06); }
+    100% { transform: scale(1);    opacity: 1; }
+}
+
+.cf-emoji { font-size: 2.8rem; line-height: 1; margin-bottom: 4px; }
+.cf-msg   { font-size: 1.6rem; font-weight: 800; color: #fff;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.2); margin-bottom: 8px; }
+.cf-xp    { font-size: 1.15rem; font-weight: 700;
+            color: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.18);
+            border-radius: 20px; padding: 4px 14px; display: inline-block; }
