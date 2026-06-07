@@ -586,18 +586,14 @@ function initNotesScreen() {
 
     const notes     = studentData.wrongNotes || [];
     const container = document.getElementById('notes-content');
-    const clearBtn  = document.getElementById('btn-clear-notes');
 
     if (notes.length === 0) {
         container.innerHTML = `<div class="notes-empty">
             🎉 오답노트가 비어있어요!<br>
             틀린 문제가 없다는 뜻이에요. 정말 잘하고 있어요!
         </div>`;
-        clearBtn.style.display = 'none';
         return;
     }
-
-    clearBtn.style.display = 'flex';
 
     // 레벨 순, 최신순 정렬
     const sorted = [...notes].sort((a, b) => a.level - b.level);
