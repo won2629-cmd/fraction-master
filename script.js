@@ -1081,14 +1081,14 @@ function selectOption(idx) {
 
     if (isCorrect) {
         handleCorrectAnswer(q);
+        // 정답: 버튼 숨김 (자동 진행)
     } else {
         handleWrongAnswer(q, idx);
+        // 오답: 다음 버튼 표시
+        const nBtn = document.getElementById('btn-next');
+        nBtn.classList.add('visible');
+        nBtn.style.display = 'flex';
     }
-
-    // 다음 버튼 표시
-    const nBtn = document.getElementById('btn-next');
-    nBtn.classList.add('visible');
-    nBtn.style.display = 'flex';
 }
 
 function handleCorrectAnswer(q) {
