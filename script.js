@@ -158,6 +158,20 @@ const XP_PER_CORRECT = 10;
 const XP_PER_LEVEL_BONUS = 100;
 const XP_PER_LEVEL = 200; // 레벨 진행도 표시용
 
+// ─────────────────────────────────────────────────────────
+// 레벨 통과 규칙 (찍기 방지)
+//   진행도 = (정답 수) - (오답 수 × WRONG_PENALTY), 0 미만으로는 안 내려감.
+//   이 진행도가 QUESTIONS_PER_LEVEL(10)에 도달해야 레벨 완료.
+//   → 틀리면 진행도가 깎이므로, 무작정 찍으면 진행도가 0 근처에 머물러 통과 불가.
+//   값을 조절해 난이도를 바꿀 수 있어요:
+//     WRONG_PENALTY 1   → 정답률 약 50% 이상 필요(기본)
+//     WRONG_PENALTY 0.5 → 정답률 약 33% 이상이면 통과(더 너그러움)
+//   MAX_WRONG_PER_LEVEL: 오답이 이 수에 도달하면 라운드를 끝내고 복습하도록 맵으로 보냄.
+//   0(또는 음수)으로 두면 오답 제한 없음.
+const WRONG_PENALTY        = 1;
+const MAX_WRONG_PER_LEVEL  = 15;
+
+
 const LEVEL_NAMES = [
     '', // 인덱스 0 패딩
     '분수 읽기',
@@ -198,11 +212,12 @@ let gameState = {
     currentLevel: 1,         // 현재 게임 레벨
     questions: [],           // 현재 레벨 문제 배열
     questionIndex: 0,        // 현재 문제 인덱스
-    correctCount: 0,         // 이번 레벨 정답 수
+    correctCount: 0,         // 이번 레벨 진행도(정답 수 - 오답 차감, 0 이상)
     wrongCount: 0,           // 이번 레벨 오답 수
     answered: false,         // 현재 문제 답변 여부
     retryMode: false,        // 오답 재출제 모드
     retryQuestion: null,     // 재출제할 문제
+    levelFailed: false,      // 오답 한계 도달 → 라운드 종료 플래그
     noteRetryMode: false,    // 오답노트 재도전 모드 (정답 시 노트 삭제)
     fromScreen: 'map',       // 진단/기록 진입 이전 화면
     audioCtx: null           // Web Audio 컨텍스트
@@ -1061,6 +1076,7 @@ function startLevel(level) {
     gameState.answered      = false;
     gameState.retryMode     = false;
     gameState.retryQuestion = null;
+    gameState.levelFailed   = false;
 
     // 문제 가져오기
     gameState.questions = getQuestions(level, QUESTIONS_PER_LEVEL);
@@ -1090,11 +1106,11 @@ function renderQuestion() {
 
     gameState.answered = false;
 
-    // 진행 바 — 문제 번호 대신 '정답 수 / 목표 10' 기준으로 표시
+    // 진행 바 — 목표(정답 10개)까지의 진행도. 틀리면 줄어든다.
     const pct = Math.min(100, (gameState.correctCount / QUESTIONS_PER_LEVEL) * 100);
     document.getElementById('progress-fill').style.width = pct + '%';
     document.getElementById('progress-label').textContent =
-        `정답 ${gameState.correctCount} / ${QUESTIONS_PER_LEVEL}${gameState.retryMode ? ' (다시 풀기)' : ''}`;
+        `진행 ${gameState.correctCount} / ${QUESTIONS_PER_LEVEL}${gameState.retryMode ? ' (다시 풀기)' : ''}`;
     document.getElementById('progress-level-tag').textContent =
         `레벨 ${gameState.currentLevel} · ${LEVEL_NAMES[gameState.currentLevel]}`;
 
@@ -1284,6 +1300,9 @@ function handleWrongAnswer(q, myAnswerIdx) {
     if (!gameState.noteRetryMode) {
         gameState.wrongCount++;
 
+        // 진행도 차감 (찍기 방지) — 0 미만으로는 내려가지 않음
+        gameState.correctCount = Math.max(0, gameState.correctCount - WRONG_PENALTY);
+
         // 오답노트 저장
         addToWrongNotes(q, myAnswerIdx, q.options[q.correct]);
 
@@ -1292,6 +1311,11 @@ function handleWrongAnswer(q, myAnswerIdx) {
             studentData.wrongCount = (studentData.wrongCount || 0) + 1;
             updateCurrentStudentData(studentData);
             updateHUD(studentData);
+        }
+
+        // 오답이 한계에 도달하면 라운드 종료 → 복습 유도 (맵으로 복귀)
+        if (MAX_WRONG_PER_LEVEL > 0 && gameState.wrongCount >= MAX_WRONG_PER_LEVEL) {
+            gameState.levelFailed = true;
         }
 
         // 재출제 준비 (첫 오답만)
@@ -1326,6 +1350,12 @@ function nextQuestion() {
         return;
     }
 
+    // 오답이 한계에 도달 → 라운드 종료하고 복습 유도
+    if (gameState.levelFailed) {
+        endRoundForReview();
+        return;
+    }
+
     gameState.questionIndex++;
     gameState.retryMode     = false;
     gameState.retryQuestion = null;
@@ -1350,6 +1380,19 @@ function nextQuestion() {
 // ─────────────────────────────────────────────────────────
 // 레벨 완료
 // ─────────────────────────────────────────────────────────
+
+/**
+ * 오답이 한계에 도달했을 때 라운드를 종료하고 맵으로 돌려보냅니다.
+ * 레벨은 완료 처리하지 않으며(다시 도전 가능), 격려 메시지를 보여줍니다.
+ * 이미 맞힌 문제로 얻은 XP는 그대로 유지됩니다.
+ */
+function endRoundForReview() {
+    gameState.levelFailed   = false;
+    gameState.retryMode     = false;
+    gameState.retryQuestion = null;
+    showScreen('map');
+    showToast('조금 어려웠죠? 힌트와 오답노트를 보고 다시 도전해봐요 💪');
+}
 
 function finishLevel() {
     const level   = gameState.currentLevel;
@@ -1710,13 +1753,13 @@ function retryNoteQuestion(sortedIdx) {
     const note   = sorted[sortedIdx];
     if (!note) return;
 
-    const question = {
+    const question = withShuffledOptions({
         question: note.question,
         display:  note.display,
         options:  note.options,
         correct:  note.correct,
         hint:     note.hint
-    };
+    });
 
     // 단일 문제 게임 시작 + 노트 재도전 모드 활성화
     gameState.currentLevel  = note.level;

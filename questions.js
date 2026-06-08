@@ -49,6 +49,22 @@ function shuffleArray(array) {
     return arr;
 }
 
+/**
+ * 한 문제의 보기(options) 순서를 무작위로 섞고 정답 인덱스를 다시 계산합니다.
+ * 정답이 항상 같은 자리(특히 2번째)에 오던 편향을 없애, '찍기'를 방지합니다.
+ * 원본 풀 객체는 건드리지 않고 새 객체를 반환하며, 중복 판별용으로 _orig에 원본을 보관합니다.
+ * @param {Object} q 원본 문제 객체
+ * @returns {Object} 보기가 섞인 새 문제 객체
+ */
+function withShuffledOptions(q) {
+    if (!q || !Array.isArray(q.options)) return q;
+    // 0..n-1 인덱스를 섞은 뒤, 그 순서대로 보기를 재배열
+    const order      = shuffleArray(q.options.map((_, i) => i));
+    const newOptions = order.map(i => q.options[i]);
+    const newCorrect = order.indexOf(q.correct);
+    return { ...q, options: newOptions, correct: newCorrect, _orig: q._orig || q };
+}
+
 // ─────────────────────────────────────────────────────────
 // 레벨별 문제 풀 (QUESTION_POOL)
 // ─────────────────────────────────────────────────────────
@@ -783,7 +799,9 @@ const QUESTION_POOL = {
 function getQuestions(level, count = 10) {
     const pool = QUESTION_POOL[level];
     if (!pool) return [];
-    return shuffleArray(pool).slice(0, Math.min(count, pool.length));
+    return shuffleArray(pool)
+        .slice(0, Math.min(count, pool.length))
+        .map(withShuffledOptions);
 }
 
 /**
@@ -795,7 +813,11 @@ function getQuestions(level, count = 10) {
 function getSimilarQuestion(level, usedQuestions) {
     const pool = QUESTION_POOL[level];
     if (!pool) return null;
-    const available = pool.filter(q => !usedQuestions.includes(q));
-    if (available.length === 0) return pool[Math.floor(Math.random() * pool.length)];
-    return available[Math.floor(Math.random() * available.length)];
+    // 사용된 문제는 보기가 섞인 사본이므로, 원본(_orig) 기준으로 중복을 거른다
+    const usedOrigs = new Set((usedQuestions || []).map(q => (q && q._orig) || q));
+    const available = pool.filter(q => !usedOrigs.has(q));
+    const base = available.length === 0
+        ? pool[Math.floor(Math.random() * pool.length)]
+        : available[Math.floor(Math.random() * available.length)];
+    return withShuffledOptions(base);
 }
