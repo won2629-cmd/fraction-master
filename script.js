@@ -89,11 +89,15 @@ function mergeStudentData(local, cloud) {
     if (!cloud) return local;
     // XP가 더 높은 쪽을 기본으로 사용
     const base = (cloud.totalXP || 0) >= (local.totalXP || 0) ? cloud : local;
-    // PIN은 어느 쪽에든 있으면 반드시 보존
-    // (클라우드 덮어씌움으로 PIN이 사라지는 것 방지)
+    // 어느 쪽에서 갱신됐든 반드시 보존해야 하는 필드들
+    const extra = {};
+    // PIN은 어느 쪽에든 있으면 보존 (클라우드 덮어씌움으로 PIN이 사라지는 것 방지)
     const pin = local.pin || cloud.pin;
-    if (pin) return { ...base, pin };
-    return base;
+    if (pin) extra.pin = pin;
+    // 마지막 로그인 시각은 더 최근 값을 보존 (ISO 문자열은 사전순 = 시간순)
+    const logins = [local.lastLogin, cloud.lastLogin].filter(Boolean).sort();
+    if (logins.length) extra.lastLogin = logins[logins.length - 1];
+    return Object.keys(extra).length ? { ...base, ...extra } : base;
 }
 
 // 클라우드 저장 디바운스 타이머 (잦은 저장 방지 — 마지막 후 3초)
@@ -872,6 +876,8 @@ async function selectProfile(name, quiet = false, newPin = null) {
     if (newPin !== null) {
         data.students[name].pin = newPin;
     }
+    // 로그인(프로필 선택) 시각 기록 — 교사 대시보드 '마지막 접속'용 (ISO, 날짜+시간)
+    data.students[name].lastLogin = new Date().toISOString();
     data.currentStudent = name;
     saveData(data);
 

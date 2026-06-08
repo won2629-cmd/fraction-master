@@ -201,8 +201,29 @@ function calcStudentSummary(name, data) {
         wrongNotesCount: wrongNotes.length,
         weakLevels,
         characterName,
-        lastPlayed: data.lastPlayed || '기록 없음'
+        lastPlayed: data.lastPlayed || '기록 없음',
+        lastLogin:  data.lastLogin  || null
     };
+}
+
+/**
+ * 마지막 로그인 시각(ISO 문자열)을 한국식 날짜+시간으로 표시합니다.
+ * 오늘이면 '오늘 오후 2:30', 어제면 '어제 …', 그 외엔 'M월 D일 …' 형식.
+ */
+function formatLastLogin(iso) {
+    if (!iso) return '기록 없음';
+    const d = new Date(iso);
+    if (isNaN(d)) return '기록 없음';
+    const time = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const now  = new Date();
+    const sameDay = (a, b) =>
+        a.getFullYear() === b.getFullYear() &&
+        a.getMonth() === b.getMonth() &&
+        a.getDate() === b.getDate();
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    if (sameDay(d, now))       return `오늘 ${time}`;
+    if (sameDay(d, yesterday)) return `어제 ${time}`;
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${time}`;
 }
 
 /**
@@ -285,6 +306,7 @@ function renderTeacherDashboard(studentsRaw) {
                         <th>경험치</th>
                         <th>오답노트</th>
                         <th>취약 레벨</th>
+                        <th>마지막 접속</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -321,6 +343,7 @@ function renderTeacherDashboard(studentsRaw) {
                     <td class="td-center">${st.totalXP.toLocaleString()}</td>
                     <td class="td-center">${st.wrongNotesCount}</td>
                     <td class="td-weak">${weakStr}</td>
+                    <td class="td-center" style="white-space:nowrap;color:var(--txt-dim)">${formatLastLogin(st.lastLogin)}</td>
                 </tr>
             `;
         });
@@ -433,7 +456,7 @@ function downloadCSV() {
     const headers = [
         '이름', '현재레벨', '최고레벨', '경험치',
         '완료레벨수', '총정답수', '총오답수', '정답률(%)',
-        '오답노트수', '취약레벨', '캐릭터'
+        '오답노트수', '취약레벨', '캐릭터', '마지막접속'
     ];
 
     const rows = students.map(st => [
@@ -447,7 +470,8 @@ function downloadCSV() {
         st.accuracy,
         st.wrongNotesCount,
         `"${st.weakLevels.map(l => `레벨${l}`).join('/')}"`,
-        `"${st.characterName}"`
+        `"${st.characterName}"`,
+        `"${formatLastLogin(st.lastLogin)}"`
     ]);
 
     const csvContent = '\uFEFF' +
