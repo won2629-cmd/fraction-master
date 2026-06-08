@@ -175,6 +175,14 @@ const XP_PER_LEVEL = 200; // 레벨 진행도 표시용
 const WRONG_PENALTY        = 1;
 const MAX_WRONG_PER_LEVEL  = 15;
 
+// ─────────────────────────────────────────────────────────
+// 정답 칭찬 플래시 타이밍 (밀리초)
+//   FLASH_HOLD_MS: 칭찬 문구가 떠 있는 시간 (이후 빠르게 사라짐)
+//   NEXT_DELAY_MS: 정답 후 다음 문제로 자동으로 넘어가는 시간
+//   더 짧게/길게 하려면 이 두 값만 조절하세요.
+const FLASH_HOLD_MS = 400;
+const NEXT_DELAY_MS = 750;
+
 
 const LEVEL_NAMES = [
     '', // 인덱스 0 패딩
@@ -1254,8 +1262,8 @@ function handleCorrectAnswer(q) {
     const m = msgs[Math.floor(Math.random() * msgs.length)];
     showCorrectFlash(m.e, m.t, XP_PER_CORRECT);
 
-    // 1.3초 후 자동 다음 문제 (플래시 사라지는 타이밍과 맞춤)
-    setTimeout(() => nextQuestion(), 1300);
+    // 정답 후 자동으로 다음 문제 (플래시가 사라진 직후)
+    setTimeout(() => nextQuestion(), NEXT_DELAY_MS);
 }
 
 /** 정답 중앙 플래시 오버레이를 잠깐 보여줍니다 */
@@ -1267,10 +1275,9 @@ function showCorrectFlash(emoji, msg, xp) {
     document.getElementById('cf-xp').textContent    = `+${xp} XP ⚡`;
 
     el.className = 'correct-flash show';
-    // 0.9초 후 fade-out 시작
-    setTimeout(() => { el.className = 'correct-flash hiding'; }, 900);
-    // 1.3초 후 완전히 숨기기
-    setTimeout(() => { el.className = 'correct-flash'; }, 1300);
+    // 잠깐 보여준 뒤 빠르게 사라지게
+    setTimeout(() => { el.className = 'correct-flash hiding'; }, FLASH_HOLD_MS);
+    setTimeout(() => { el.className = 'correct-flash'; }, FLASH_HOLD_MS + 300);
 }
 
 
