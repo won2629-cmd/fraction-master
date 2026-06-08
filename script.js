@@ -350,6 +350,7 @@ function showScreen(screenId) {
         case 'map':        initMapScreen();        break;
         case 'diagnosis':  initDiagnosisScreen();  break;
         case 'records':    initRecordsScreen();    break;
+        case 'masters':    initMastersScreen();    break;
         case 'notes':      initNotesScreen();      break;
         case 'teacher':    initTeacherScreen();    break;
     }
@@ -685,31 +686,25 @@ async function confirmName() {
         return;
     }
 
-    // ② 로컬에 PIN 없음 → Firebase에서 먼저 확인
-    //    (다른 기기에서 이미 PIN을 설정했을 수 있음)
-    if (FIREBASE_URL) {
-        const startBtn = document.querySelector('#screen-name .btn-gold');
-        if (startBtn) { startBtn.disabled = true; startBtn.textContent = '확인 중...'; }
+    // ② 로컬에 데이터 없음 + Firebase 사용 가능 → 빠르게 확인 (최대 1.5초)
+    //    (교육청 등 제한 네트워크에서 타임아웃되면 즉시 setup으로 진행)
+    if (FIREBASE_URL && !existing) {
+        const cloudData = await Promise.race([
+            loadStudentFromCloud(name),
+            new Promise(resolve => setTimeout(() => resolve(null), 1500))
+        ]).catch(() => null);
 
-        try {
-            const cloudData = await loadStudentFromCloud(name);
-            if (cloudData && cloudData.pin) {
-                // 클라우드에 PIN 있음 → 로컬에 저장 후 인증
-                const d = loadData();
-                if (!d.students[name]) d.students[name] = cloudData;
-                else Object.assign(d.students[name], cloudData);
-                saveData(d);
-                openPin('verify', name);
-                return;
-            }
-        } catch (e) {
-            // 클라우드 확인 실패 → 로컬 흐름으로 진행
-        } finally {
-            if (startBtn) { startBtn.disabled = false; startBtn.textContent = '시작하기 🚀'; }
+        if (cloudData && cloudData.pin) {
+            const d = loadData();
+            if (!d.students[name]) d.students[name] = cloudData;
+            else Object.assign(d.students[name], cloudData);
+            saveData(d);
+            openPin('verify', name);
+            return;
         }
     }
 
-    // ③ 어디에도 PIN 없음 → 신규 설정
+    // ③ PIN 없음 → 신규 설정
     openPin('setup', name);
 }
 
@@ -883,6 +878,108 @@ function selectProfileFromList(name) {
     } else {
         selectProfile(name, false, null);
     }
+}
+
+// ─────────────────────────────────────────────────────────
+// 분수 마스터 명단 (명예의 전당)
+// ─────────────────────────────────────────────────────────
+
+const CHAR_MEDALS = ['🥇','🥈','🥉'];
+
+async function initMastersScreen() {
+    const listEl        = document.getElementById('masters-list');
+    const chalWrap      = document.getElementById('masters-challengers-wrap');
+    const chalEl        = document.getElementById('masters-challengers');
+    listEl.innerHTML    = '<div class="spinner"></div>';
+    chalWrap.style.display = 'none';
+
+    // 로컬 + Firebase 병합
+    const local = getAllStudentsLocal();
+    let all = { ...local };
+
+    if (FIREBASE_URL) {
+        try {
+            const ctrl = new AbortController();
+            setTimeout(() => ctrl.abort(), 4000);
+            const res = await fetch(`${FIREBASE_URL}/fractionMaster.json`, { signal: ctrl.signal });
+            if (res.ok) {
+                const raw = await res.json();
+                if (raw && typeof raw === 'object') {
+                    Object.entries(raw).forEach(([key, val]) => {
+                        if (!val) return;
+                        try {
+                            const name = decodeURIComponent(key);
+                            // 클라우드가 더 진행됐거나 로컬에 없으면 클라우드 사용
+                            if (!all[name] || (val.totalXP || 0) > (all[name].totalXP || 0)) {
+                                all[name] = val;
+                            }
+                        } catch {}
+                    });
+                }
+            }
+        } catch {}
+    }
+
+    // 마스터(11단계 완료) vs 도전 중 분류
+    const masters     = [];
+    const challengers = [];
+
+    Object.entries(all).forEach(([name, data]) => {
+        if (!data) return;
+        const lv  = data.currentLevel || 1;
+        const xp  = data.totalXP      || 0;
+        const char = getCharacterInfo(Math.min(lv, TOTAL_LEVELS));
+        if (lv > TOTAL_LEVELS) {
+            masters.push({ name, xp, char });
+        } else if (lv >= 8) {
+            challengers.push({ name, lv, xp, char });
+        }
+    });
+
+    masters.sort((a, b) => b.xp - a.xp);
+    challengers.sort((a, b) => b.lv - a.lv || b.xp - a.xp);
+
+    // 마스터 목록 렌더링
+    if (masters.length === 0) {
+        listEl.innerHTML = `
+            <div class="masters-empty">
+                <div style="font-size:3rem;margin-bottom:12px">🌱</div>
+                <p>아직 마스터가 없어요.</p>
+                <p style="font-size:0.9rem;color:var(--txt-dim);margin-top:6px">
+                    11단계를 모두 클리어한 첫 번째 마스터가 되어보세요!
+                </p>
+            </div>`;
+    } else {
+        listEl.innerHTML = masters.map((s, i) => {
+            const medal  = CHAR_MEDALS[i] || '🏅';
+            const rankCls = i === 0 ? 'rank-gold' : i === 1 ? 'rank-silver' : i === 2 ? 'rank-bronze' : '';
+            return `<div class="master-row ${rankCls}">
+                <span class="mr-rank">${medal}</span>
+                <span class="mr-char">${s.char.emoji}</span>
+                <span class="mr-name">${escapeHTML(s.name)}</span>
+                <span class="mr-badge">마스터 👑</span>
+                <span class="mr-xp">⚡${s.xp.toLocaleString()} XP</span>
+            </div>`;
+        }).join('');
+    }
+
+    // 도전 중 목록
+    if (challengers.length > 0) {
+        chalWrap.style.display = 'block';
+        chalEl.innerHTML = challengers.slice(0, 10).map(s =>
+            `<div class="challenger-row">
+                <span class="ch-char">${s.char.emoji}</span>
+                <span class="ch-name">${escapeHTML(s.name)}</span>
+                <span class="ch-lv">레벨 ${s.lv}</span>
+                <span class="ch-xp">⚡${s.xp.toLocaleString()}</span>
+            </div>`
+        ).join('');
+    }
+}
+
+function getAllStudentsLocal() {
+    const data = loadData();
+    return data.students || {};
 }
 
 function clearCurrentStudent() {

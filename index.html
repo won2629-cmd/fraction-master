@@ -60,6 +60,10 @@
                 onclick="showDiagnosisFromMain()">
             📊 학습 진단
         </button>
+        <button class="btn btn-lg btn-masters" id="btn-masters-main"
+                onclick="showScreen('masters')">
+            🏆 분수 마스터 명단
+        </button>
         <button class="btn btn-lg btn-ghost" id="btn-records-main"
                 onclick="showRecordsFromMain()">
             📝 내 기록 보기
@@ -76,6 +80,28 @@
             빠른 시작
         </p>
         <div id="main-profile-list"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     화면 — 분수 마스터 명단 (명예의 전당)
+════════════════════════════════════════════════════════ -->
+<div id="screen-masters" class="screen masters-screen">
+    <button class="back-btn" onclick="showScreen('main')">← 뒤로</button>
+
+    <div class="masters-header">
+        <div class="masters-crown">👑</div>
+        <h2 class="masters-title">분수 마스터 명단</h2>
+        <p class="masters-subtitle">11단계를 모두 정복한 용사들!</p>
+    </div>
+
+    <div id="masters-list" class="masters-list">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="masters-challengers-wrap" id="masters-challengers-wrap" style="display:none">
+        <h3 class="challengers-title">🔥 도전 중!</h3>
+        <div id="masters-challengers" class="challengers-list"></div>
     </div>
 </div>
 

@@ -1807,3 +1807,88 @@ tr:hover .btn-delete-student:hover { opacity: 1; background: rgba(255,92,114,0.2
             color: rgba(255,255,255,0.9);
             background: rgba(255,255,255,0.18);
             border-radius: 20px; padding: 4px 14px; display: inline-block; }
+
+/* ─────────────────────────────────────────────────────────
+   분수 마스터 명단 버튼
+───────────────────────────────────────────────────────── */
+.btn-masters {
+    background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+    color: #2d1a00;
+    border: none;
+    font-weight: 800;
+    box-shadow: 0 4px 20px rgba(253,160,133,0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.btn-masters:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(253,160,133,0.5); }
+
+/* ─────────────────────────────────────────────────────────
+   분수 마스터 명단 화면
+───────────────────────────────────────────────────────── */
+.masters-screen { padding-bottom: 40px; }
+
+.masters-header { text-align: center; margin: 0 0 28px; }
+
+.masters-crown {
+    font-size: 3.5rem;
+    animation: crownFloat 2.5s ease-in-out infinite;
+    display: block;
+    margin-bottom: 6px;
+}
+@keyframes crownFloat {
+    0%,100% { transform: translateY(0)   rotate(-4deg); }
+    50%      { transform: translateY(-8px) rotate(4deg); }
+}
+
+.masters-title {
+    font-size: 1.7rem; font-weight: 900;
+    background: linear-gradient(135deg, #f6d365, #fda085);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 6px;
+}
+.masters-subtitle { font-size: 0.9rem; color: var(--txt-dim); margin: 0; }
+
+/* 마스터 행 */
+.masters-list  { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 520px; margin: 0 auto 24px; }
+
+.master-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-card); border: var(--border-glass);
+    border-radius: var(--radius-md); padding: 14px 16px;
+    transition: transform 0.2s;
+    animation: masterSlideIn 0.4s var(--ease-bounce) both;
+}
+.master-row:hover { transform: translateX(4px); }
+
+.rank-gold   { background: linear-gradient(135deg,rgba(246,211,101,0.18),rgba(253,160,133,0.12)); border-color: rgba(246,211,101,0.4); }
+.rank-silver { background: linear-gradient(135deg,rgba(200,200,220,0.15),rgba(180,180,200,0.08)); border-color: rgba(200,200,220,0.3); }
+.rank-bronze { background: linear-gradient(135deg,rgba(205,127,50,0.15),rgba(180,100,30,0.08));  border-color: rgba(205,127,50,0.3); }
+
+@keyframes masterSlideIn {
+    from { opacity:0; transform: translateX(-24px); }
+    to   { opacity:1; transform: translateX(0); }
+}
+
+.mr-rank  { font-size: 1.5rem; width: 32px; text-align: center; flex-shrink: 0; }
+.mr-char  { font-size: 1.4rem; flex-shrink: 0; }
+.mr-name  { flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--txt-white); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mr-badge { font-size: 0.75rem; color: #fda085; background: rgba(253,160,133,0.15); border: 1px solid rgba(253,160,133,0.3); border-radius: 12px; padding: 2px 9px; white-space: nowrap; flex-shrink: 0; }
+.mr-xp    { font-size: 0.82rem; color: var(--clr-gold); flex-shrink: 0; }
+
+.masters-empty { text-align: center; padding: 40px 20px; color: var(--txt-light); }
+
+/* 도전 중 섹션 */
+.masters-challengers-wrap { width: 100%; max-width: 520px; margin: 0 auto; }
+.challengers-title { font-size: 1rem; color: var(--txt-dim); margin: 0 0 12px; letter-spacing:.5px; }
+
+.challengers-list { display: flex; flex-direction: column; gap: 8px; }
+.challenger-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-card); border: var(--border-glass);
+    border-radius: var(--radius-sm); padding: 10px 14px;
+    opacity: 0.85;
+}
+.ch-char { font-size: 1.2rem; flex-shrink: 0; }
+.ch-name { flex: 1; font-size: 0.95rem; font-weight: 600; color: var(--txt-white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-lv   { font-size: 0.8rem; color: var(--clr-blue); background: rgba(79,195,247,0.12); border-radius: 10px; padding: 2px 8px; flex-shrink: 0; }
+.ch-xp   { font-size: 0.78rem; color: var(--clr-gold); flex-shrink: 0; }
