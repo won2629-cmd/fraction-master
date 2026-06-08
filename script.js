@@ -970,7 +970,7 @@ async function initMastersScreen() {
             const rankCls = i === 0 ? 'rank-gold' : i === 1 ? 'rank-silver' : i === 2 ? 'rank-bronze' : '';
             return `<div class="master-row ${rankCls}">
                 <span class="mr-rank">${medal}</span>
-                <span class="mr-char">${s.char.emoji}</span>
+                <span class="mr-char">${s.char.icon}</span>
                 <span class="mr-name">${escapeHTML(s.name)}</span>
                 <span class="mr-badge">마스터 👑</span>
                 <span class="mr-xp">⚡${s.xp.toLocaleString()} XP</span>
@@ -983,7 +983,7 @@ async function initMastersScreen() {
         chalWrap.style.display = 'block';
         chalEl.innerHTML = challengers.slice(0, 10).map(s =>
             `<div class="challenger-row">
-                <span class="ch-char">${s.char.emoji}</span>
+                <span class="ch-char">${s.char.icon}</span>
                 <span class="ch-name">${escapeHTML(s.name)}</span>
                 <span class="ch-lv">레벨 ${s.lv}</span>
                 <span class="ch-xp">⚡${s.xp.toLocaleString()}</span>
