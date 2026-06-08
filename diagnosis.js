@@ -260,8 +260,10 @@ function diagnoseAll(studentData) {
     Object.entries(levelProgress).forEach(([lvl, progress]) => {
         if (!progress) return; // Firebase null 값 방어
         const level = parseInt(lvl);
-        const correct = progress.correct || 0;
-        const wrong   = progress.wrong   || 0;
+        // 가장 최근 도전 결과로 진단 (없으면 누적값으로 폴백)
+        const hasRecent = (progress.recentCorrect != null) && (progress.recentWrong != null);
+        const correct = hasRecent ? progress.recentCorrect : (progress.correct || 0);
+        const wrong   = hasRecent ? progress.recentWrong   : (progress.wrong   || 0);
         if (progress.completed || (correct + wrong) > 0) {
             const total = correct + wrong;
             const levelWrong = wrongNotes.filter(n => n && n.level === level);

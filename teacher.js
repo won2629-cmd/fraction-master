@@ -175,12 +175,16 @@ function calcStudentSummary(name, data) {
         ? Math.round((totalCorrect / totalAnswered) * 100)
         : 0;
 
-    // 취약 레벨 찾기 (null 방어)
+    // 취약 레벨 찾기 — 가장 최근 도전 결과 기준 (없으면 누적값으로 폴백)
+    // 학생이 해당 레벨을 다시 풀어 정답률이 오르면 취약 표시가 사라진다.
     const weakLevels = [];
     Object.entries(levelProgress).forEach(([lvl, p]) => {
         if (!p) return;
-        const total = (p.correct || 0) + (p.wrong || 0);
-        if (total >= 5 && (p.correct || 0) / total < 0.6) {
+        const hasRecent = (p.recentCorrect != null) && (p.recentWrong != null);
+        const c = hasRecent ? p.recentCorrect : (p.correct || 0);
+        const w = hasRecent ? p.recentWrong   : (p.wrong   || 0);
+        const total = c + w;
+        if (total >= 5 && c / total < 0.6) {
             weakLevels.push(parseInt(lvl));
         }
     });

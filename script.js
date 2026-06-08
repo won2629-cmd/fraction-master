@@ -1420,8 +1420,12 @@ function finishLevel() {
     const prevProgress = studentData.levelProgress[level] || {};
     studentData.levelProgress[level] = {
         completed: true,
+        // 누적값(평생 기록) — 통계/회고용으로 보존
         correct:   (prevProgress.correct || 0) + correct,
-        wrong:     (prevProgress.wrong   || 0) + wrong
+        wrong:     (prevProgress.wrong   || 0) + wrong,
+        // 가장 최근 도전 결과 — 취약 레벨 판정용. 다시 풀어 향상되면 갱신되어 취약 표시가 사라짐
+        recentCorrect: correct,
+        recentWrong:   wrong
     };
 
     // XP 추가
