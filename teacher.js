@@ -206,7 +206,8 @@ function calcStudentSummary(name, data) {
         weakLevels,
         characterName,
         lastPlayed: data.lastPlayed || '기록 없음',
-        lastLogin:  data.lastLogin  || null
+        lastLogin:  data.lastLogin  || null,
+        goldenFound: data.goldenFound || 0
     };
 }
 
@@ -310,6 +311,7 @@ function renderTeacherDashboard(studentsRaw) {
                         <th>경험치</th>
                         <th>오답노트</th>
                         <th>취약 레벨</th>
+                        <th>황금 분수</th>
                         <th>마지막 접속</th>
                     </tr>
                 </thead>
@@ -347,6 +349,7 @@ function renderTeacherDashboard(studentsRaw) {
                     <td class="td-center">${st.totalXP.toLocaleString()}</td>
                     <td class="td-center">${st.wrongNotesCount}</td>
                     <td class="td-weak">${weakStr}</td>
+                    <td class="td-center" style="white-space:nowrap">${st.goldenFound > 0 ? '🥇 ' + st.goldenFound : '–'}</td>
                     <td class="td-center" style="white-space:nowrap;color:var(--txt-dim)">${formatLastLogin(st.lastLogin)}</td>
                 </tr>
             `;
@@ -460,7 +463,7 @@ function downloadCSV() {
     const headers = [
         '이름', '현재레벨', '최고레벨', '경험치',
         '완료레벨수', '총정답수', '총오답수', '정답률(%)',
-        '오답노트수', '취약레벨', '캐릭터', '마지막접속'
+        '오답노트수', '취약레벨', '캐릭터', '황금분수', '마지막접속'
     ];
 
     const rows = students.map(st => [
@@ -475,6 +478,7 @@ function downloadCSV() {
         st.wrongNotesCount,
         `"${st.weakLevels.map(l => `레벨${l}`).join('/')}"`,
         `"${st.characterName}"`,
+        st.goldenFound,
         `"${formatLastLogin(st.lastLogin)}"`
     ]);
 

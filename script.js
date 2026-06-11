@@ -230,6 +230,8 @@ let gameState = {
     retryMode: false,        // 오답 재출제 모드
     retryQuestion: null,     // 재출제할 문제
     levelFailed: false,      // 오답 한계 도달 → 라운드 종료 플래그
+    goldenPending: false,    // 이번 레벨에 황금 조각이 숨어 있어 등장 대기 중
+    goldenTriggerAt: 0,      // 정답 N개째에 황금 조각 등장
     noteRetryMode: false,    // 오답노트 재도전 모드 (정답 시 노트 삭제)
     fromScreen: 'map',       // 진단/기록 진입 이전 화면
     audioCtx: null           // Web Audio 컨텍스트
@@ -260,6 +262,20 @@ function saveData(data) {
     }
 }
 
+/**
+ * 1~TOTAL_LEVELS 중 서로 다른 레벨 3개를 골라 '황금 분수 조각'을 숨길 위치로 반환합니다.
+ * 프로필(이름)마다 위치가 달라서, 학생은 언제 나올지 모르는 행운처럼 만나게 됩니다.
+ */
+function pickGoldenLevels(count = 3) {
+    const pool = [];
+    for (let i = 1; i <= TOTAL_LEVELS; i++) pool.push(i);
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, count).sort((a, b) => a - b);
+}
+
 /** 기본 학생 데이터 구조를 반환합니다 */
 function createDefaultStudentData() {
     return {
@@ -270,7 +286,11 @@ function createDefaultStudentData() {
         wrongCount:    0,
         wrongNotes:    [],
         levelProgress: {},
-        lastPlayed:    new Date().toLocaleDateString('ko-KR')
+        lastPlayed:    new Date().toLocaleDateString('ko-KR'),
+        // 황금 분수 조각 (선생님 선물): 이 프로필 여정 동안 숨겨진 3개 레벨
+        goldenLevels:      pickGoldenLevels(),
+        goldenFound:       0,   // 찾은 개수
+        goldenFoundLevels: []   // 이미 찾은 레벨 (프로필당 레벨별 1회)
     };
 }
 
@@ -1099,6 +1119,24 @@ function startLevel(level) {
         return;
     }
 
+    // 황금 분수 조각 등장 준비
+    gameState.goldenPending   = false;
+    gameState.goldenTriggerAt = 0;
+    const sd = getCurrentStudentData();
+    if (sd) {
+        // 옛 프로필 등 황금 레벨이 없으면 지금 배정
+        if (!Array.isArray(sd.goldenLevels) || sd.goldenLevels.length === 0) {
+            sd.goldenLevels = pickGoldenLevels();
+            updateCurrentStudentData({ goldenLevels: sd.goldenLevels });
+        }
+        const found = sd.goldenFoundLevels || [];
+        if (sd.goldenLevels.includes(level) && !found.includes(level)) {
+            gameState.goldenPending   = true;
+            // 이 레벨에서 정답 2~7개째에 깜짝 등장 (언제 나올지 모르게)
+            gameState.goldenTriggerAt = 2 + Math.floor(Math.random() * 6);
+        }
+    }
+
     showScreen('game');
     renderQuestion();
 }
@@ -1251,6 +1289,14 @@ function handleCorrectAnswer(q) {
         removeNoteAfterCorrect(q.question, gameState.currentLevel);
     }
 
+    // 황금 분수 조각 깜짝 등장 (이 레벨의 정답 N개째, 오답노트 재도전 중에는 제외)
+    if (gameState.goldenPending && !gameState.noteRetryMode &&
+        gameState.correctCount >= gameState.goldenTriggerAt) {
+        gameState.goldenPending = false;
+        triggerGolden();
+        return; // 황금 오버레이의 '계속하기' 버튼이 다음 문제로 진행
+    }
+
     // 중앙 정답 플래시 표시 후 자동 다음 문제
     const msgs = [
         { e: '🎉', t: '정답이에요!' },
@@ -1264,6 +1310,30 @@ function handleCorrectAnswer(q) {
 
     // 정답 후 자동으로 다음 문제 (플래시가 사라진 직후)
     setTimeout(() => nextQuestion(), NEXT_DELAY_MS);
+}
+
+/** 황금 분수 조각 등장: 기록을 저장하고 축하 오버레이를 띄웁니다 (XP 보상 없음, 선생님 선물용) */
+function triggerGolden() {
+    playSound('correct');
+    const sd = getCurrentStudentData();
+    if (sd) {
+        const found = Array.isArray(sd.goldenFoundLevels) ? sd.goldenFoundLevels.slice() : [];
+        if (!found.includes(gameState.currentLevel)) found.push(gameState.currentLevel);
+        updateCurrentStudentData({
+            goldenFound:       (sd.goldenFound || 0) + 1,
+            goldenFoundLevels: found
+        }, true); // 즉시 클라우드 저장 → 교사 대시보드에 바로 반영
+    }
+    const el = document.getElementById('golden-overlay');
+    if (el) el.classList.add('show');
+    else    nextQuestion(); // 오버레이가 없으면 그냥 진행 (안전장치)
+}
+
+/** 황금 오버레이를 닫고 다음 문제로 진행합니다 */
+function continueAfterGolden() {
+    const el = document.getElementById('golden-overlay');
+    if (el) el.classList.remove('show');
+    nextQuestion();
 }
 
 /** 정답 중앙 플래시 오버레이를 잠깐 보여줍니다 */
