@@ -97,6 +97,12 @@ function mergeStudentData(local, cloud) {
     // 마지막 로그인 시각은 더 최근 값을 보존 (ISO 문자열은 사전순 = 시간순)
     const logins = [local.lastLogin, cloud.lastLogin].filter(Boolean).sort();
     if (logins.length) extra.lastLogin = logins[logins.length - 1];
+    // 황금 분수: 찾은 수와 선생님 지급 수는 더 큰 값을 보존
+    // (학생 기기의 전체 PUT로 교사가 기록한 지급 상태가 지워지지 않도록)
+    const founds  = [local.goldenFound,  cloud.goldenFound ].filter(v => typeof v === 'number');
+    const givens  = [local.goldenGiven,  cloud.goldenGiven ].filter(v => typeof v === 'number');
+    if (founds.length) extra.goldenFound = Math.max(...founds);
+    if (givens.length) extra.goldenGiven = Math.max(...givens);
     return Object.keys(extra).length ? { ...base, ...extra } : base;
 }
 
@@ -290,7 +296,8 @@ function createDefaultStudentData() {
         // 황금 분수 조각 (선생님 선물): 이 프로필 여정 동안 숨겨진 3개 레벨
         goldenLevels:      pickGoldenLevels(),
         goldenFound:       0,   // 찾은 개수
-        goldenFoundLevels: []   // 이미 찾은 레벨 (프로필당 레벨별 1회)
+        goldenFoundLevels: [],  // 이미 찾은 레벨 (프로필당 레벨별 1회)
+        goldenGiven:       0    // 선생님이 선물 지급 완료한 개수 (교사 대시보드에서 기록)
     };
 }
 

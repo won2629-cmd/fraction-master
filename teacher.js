@@ -207,7 +207,9 @@ function calcStudentSummary(name, data) {
         characterName,
         lastPlayed: data.lastPlayed || '기록 없음',
         lastLogin:  data.lastLogin  || null,
-        goldenFound: data.goldenFound || 0
+        goldenFound:   data.goldenFound || 0,
+        goldenGiven:   data.goldenGiven || 0,
+        goldenPending: Math.max(0, (data.goldenFound || 0) - (data.goldenGiven || 0))
     };
 }
 
@@ -274,9 +276,16 @@ function renderTeacherDashboard(studentsRaw) {
         ? (students.reduce((s, st) => s + st.currentLevel, 0) / students.length).toFixed(1)
         : 0;
     const totalWrongNotes = students.reduce((s, st) => s + st.wrongNotesCount, 0);
+    const pendingCount = students.filter(st => st.goldenPending > 0).length;
+    _lastTeacherData = studentsRaw;
 
     let html = `
     <div class="teacher-dashboard">
+        <div class="teacher-tabs">
+            <button class="tt-btn active" id="tt-students" onclick="teacherTab('students')">👥 학생 현황 ${students.length}</button>
+            <button class="tt-btn" id="tt-gifts" onclick="teacherTab('gifts')">🎁 황금 선물${pendingCount > 0 ? ` · 대기 ${pendingCount}` : ''}</button>
+        </div>
+        <div id="tab-students" class="teacher-tab-pane">
         <!-- 요약 카드들 -->
         <div class="teacher-summary-cards">
             <div class="summary-card">
@@ -372,9 +381,97 @@ function renderTeacherDashboard(studentsRaw) {
                 🗑️ 전체 데이터 삭제
             </button>
         </div>
+        </div><!-- /tab-students -->
+
+        <div id="tab-gifts" class="teacher-tab-pane" style="display:none">
+            <div id="gift-pane-inner">${buildGiftView(students)}</div>
+        </div>
     </div>`;
 
     return html;
+}
+
+/** 학생 현황 / 황금 선물 탭 전환 */
+function teacherTab(which) {
+    const sPane = document.getElementById('tab-students');
+    const gPane = document.getElementById('tab-gifts');
+    const sBtn  = document.getElementById('tt-students');
+    const gBtn  = document.getElementById('tt-gifts');
+    if (!sPane || !gPane) return;
+    const gifts = which === 'gifts';
+    sPane.style.display = gifts ? 'none' : '';
+    gPane.style.display = gifts ? '' : 'none';
+    if (sBtn) sBtn.classList.toggle('active', !gifts);
+    if (gBtn) gBtn.classList.toggle('active', gifts);
+}
+
+/** 황금 선물 지급 화면 HTML (요약 + 학생 카드 목록) */
+function buildGiftView(students) {
+    const earners = students.filter(s => s.goldenFound > 0);
+    if (earners.length === 0) {
+        return `<div class="gift-empty">아직 황금 분수 조각을 찾은 학생이 없어요. 🥇<br>열심히 풀다 보면 여기에 나타나요!</div>`;
+    }
+    // 지급 대기(미지급) 먼저, 그다음 지급 완료. 같은 그룹은 최근 접속 순.
+    earners.sort((a, b) => {
+        const pa = a.goldenPending > 0 ? 0 : 1;
+        const pb = b.goldenPending > 0 ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return (b.lastLogin || '').localeCompare(a.lastLogin || '');
+    });
+    const pendingCount = earners.filter(s => s.goldenPending > 0).length;
+    const givenTotal   = earners.reduce((s, st) => s + st.goldenGiven, 0);
+    const summary = `
+        <div class="gift-summary">
+            <span class="gs-chip gs-pending">지급 대기 <b>${pendingCount}</b>명</span>
+            <span class="gs-chip gs-given">누적 지급 <b>${givenTotal}</b>개</span>
+        </div>`;
+    return summary + earners.map(giftCard).join('');
+}
+
+/** 학생 한 명의 선물 카드 */
+function giftCard(s) {
+    const pending = s.goldenPending > 0;
+    const btn = pending
+        ? `<button class="gift-btn give" onclick="markGoldenGiven('${escapeAttr(s.name)}')">선물 지급</button>`
+        : `<button class="gift-btn done" disabled>지급함 ✓</button>`;
+    return `
+    <div class="gift-card ${pending ? 'is-pending' : ''}">
+        <div class="gift-icon">🥇</div>
+        <div class="gift-info">
+            <div class="gift-name">${escapeHTML(s.name)} <span class="gift-count">🥇 ${s.goldenFound}</span></div>
+            <div class="gift-meta">Lv.${s.currentLevel} · ${formatLastLogin(s.lastLogin)}${pending ? ` · <span class="gift-wait">대기 ${s.goldenPending}</span>` : ''}</div>
+        </div>
+        ${btn}
+    </div>`;
+}
+
+/** 선생님이 한 학생의 선물 지급을 완료 처리 (Firebase에 기록) */
+async function markGoldenGiven(name) {
+    const rec   = _lastTeacherData && _lastTeacherData[name];
+    const found = (rec && rec.goldenFound) || 0;
+    if (rec) rec.goldenGiven = found; // 캐시 즉시 반영
+    try {
+        if (typeof FIREBASE_URL !== 'undefined' && FIREBASE_URL && typeof nameToKey === 'function') {
+            // PATCH = 다른 필드는 건드리지 않고 goldenGiven만 갱신
+            await fetch(`${FIREBASE_URL}/fractionMaster/${nameToKey(name)}.json`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ goldenGiven: found })
+            });
+        }
+    } catch (e) { /* 오프라인이어도 화면 표시는 갱신됨 */ }
+    rerenderGifts();
+}
+
+/** 선물 탭만 다시 그리기 (탭 전환 유지) */
+function rerenderGifts() {
+    if (!_lastTeacherData) return;
+    const students = Object.entries(_lastTeacherData).map(([n, d]) => calcStudentSummary(n, d));
+    const inner = document.getElementById('gift-pane-inner');
+    if (inner) inner.innerHTML = buildGiftView(students);
+    const pendingCount = students.filter(s => s.goldenPending > 0).length;
+    const gBtn = document.getElementById('tt-gifts');
+    if (gBtn) gBtn.innerHTML = `🎁 황금 선물${pendingCount > 0 ? ` · 대기 ${pendingCount}` : ''}`;
 }
 
 /**

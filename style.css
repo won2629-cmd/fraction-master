@@ -1854,6 +1854,51 @@ tr:hover .btn-delete-student:hover { opacity: 1; background: rgba(255,92,114,0.2
 .golden-btn:active { transform: translateY(0); }
 
 /* ─────────────────────────────────────────────────────────
+   교사 대시보드: 탭 토글 + 황금 선물 지급
+───────────────────────────────────────────────────────── */
+.teacher-tabs { display: flex; gap: 10px; margin-bottom: 18px; }
+.tt-btn {
+    flex: 1; padding: 14px 12px; border-radius: 14px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.10);
+    background: var(--bg-card); color: var(--txt-light);
+    font-size: 1rem; font-weight: 700; transition: all 0.15s;
+}
+.tt-btn:hover  { background: var(--bg-card-hover); }
+.tt-btn.active { background: linear-gradient(135deg, #f6b73c, #e89215); color: #3a2600; border-color: transparent; }
+
+.gift-summary { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.gs-chip   { padding: 8px 16px; border-radius: 20px; font-size: 0.95rem; font-weight: 700; }
+.gs-chip b { font-size: 1.05rem; }
+.gs-pending { background: rgba(246,183,60,0.16); color: #ffcf7a; }
+.gs-given   { background: rgba(255,255,255,0.07); color: var(--txt-light); }
+
+.gift-card {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 14px 16px; margin-bottom: 10px;
+}
+.gift-card.is-pending { border-color: rgba(246,183,60,0.55); background: rgba(246,183,60,0.07); }
+.gift-icon {
+    width: 48px; height: 48px; flex: none; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+    background: linear-gradient(135deg, #ffe08a, #f6b73c);
+}
+.gift-info  { flex: 1; min-width: 0; }
+.gift-name  { font-size: 1.15rem; font-weight: 800; color: var(--txt-white); }
+.gift-count { font-size: 0.95rem; font-weight: 700; color: #ffcf7a; margin-left: 6px; }
+.gift-meta  { font-size: 0.85rem; color: var(--txt-dim); margin-top: 2px; }
+.gift-wait  { color: #ffcf7a; font-weight: 700; }
+.gift-btn {
+    flex: none; border: none; border-radius: 12px; padding: 12px 20px;
+    font-size: 1rem; font-weight: 800; cursor: pointer; transition: transform 0.12s;
+}
+.gift-btn.give   { background: #27c06a; color: #fff; box-shadow: 0 4px 14px rgba(39,192,106,0.35); }
+.gift-btn.give:hover  { transform: translateY(-2px); }
+.gift-btn.give:active { transform: translateY(0); }
+.gift-btn.done   { background: rgba(255,255,255,0.08); color: var(--txt-dim); cursor: default; }
+.gift-empty { text-align: center; padding: 40px 16px; color: var(--txt-dim); line-height: 1.7; }
+
+/* ─────────────────────────────────────────────────────────
    분수 마스터 명단 버튼
 ───────────────────────────────────────────────────────── */
 .btn-masters {
