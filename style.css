@@ -1899,6 +1899,37 @@ tr:hover .btn-delete-student:hover { opacity: 1; background: rgba(255,92,114,0.2
 .gift-empty { text-align: center; padding: 40px 16px; color: var(--txt-dim); line-height: 1.7; }
 
 /* ─────────────────────────────────────────────────────────
+   평균 정답률 → 어려운 부분 분석 패널
+───────────────────────────────────────────────────────── */
+.sc-clickable { cursor: pointer; transition: transform 0.12s, background 0.15s; }
+.sc-clickable:hover { transform: translateY(-2px); background: var(--bg-card-hover); }
+.sc-hint { font-size: 0.72rem; font-weight: 700; color: #6db8ff; margin-left: 4px; white-space: nowrap; }
+
+.analysis-box {
+    background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 18px; margin-bottom: 16px;
+}
+.analysis-h   { font-size: 1.05rem; font-weight: 800; color: var(--txt-white); margin: 0 0 4px; }
+.analysis-sub { font-size: 0.82rem; color: var(--txt-dim); margin: 0 0 14px; }
+.analysis-empty { color: var(--txt-dim); padding: 14px 0; text-align: center; }
+
+.lvl-row  { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.lvl-name { width: 116px; flex: none; font-size: 0.88rem; color: var(--txt-light); font-weight: 700;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lvl-bar-wrap { flex: 1; height: 16px; background: rgba(255,255,255,0.07); border-radius: 8px; overflow: hidden; }
+.lvl-bar  { display: block; height: 100%; border-radius: 8px; }
+.lvl-pct  { width: 104px; flex: none; text-align: right; font-size: 0.8rem; color: var(--txt-dim); white-space: nowrap; }
+
+.q-item  { padding: 12px 0; border-top: 1px solid rgba(255,255,255,0.07); }
+.q-item:first-child { border-top: none; padding-top: 0; }
+.q-text  { font-size: 0.98rem; color: var(--txt-white); font-weight: 700; }
+.q-rank  { display: inline-block; min-width: 22px; height: 22px; line-height: 22px; text-align: center;
+           background: rgba(226,87,76,0.22); color: #ff9b8f; border-radius: 7px;
+           font-size: 0.8rem; font-weight: 800; margin-right: 6px; }
+.q-meta  { font-size: 0.82rem; color: var(--txt-dim); margin-top: 4px; }
+.q-ans   { color: #7ee0a0; font-weight: 700; }
+
+/* ─────────────────────────────────────────────────────────
    분수 마스터 명단 버튼
 ───────────────────────────────────────────────────────── */
 .btn-masters {

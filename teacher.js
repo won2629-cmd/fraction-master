@@ -292,9 +292,9 @@ function renderTeacherDashboard(studentsRaw) {
                 <div class="sc-value">${students.length}</div>
                 <div class="sc-label">학생 수</div>
             </div>
-            <div class="summary-card">
+            <div class="summary-card sc-clickable" onclick="toggleAccuracyAnalysis()" title="클릭하면 어려워하는 부분을 분석해서 보여줘요">
                 <div class="sc-value">${avgAccuracy}%</div>
-                <div class="sc-label">평균 정답률</div>
+                <div class="sc-label">평균 정답률 <span class="sc-hint" id="acc-hint">▾ 분석</span></div>
             </div>
             <div class="summary-card">
                 <div class="sc-value">${avgLevel}</div>
@@ -305,6 +305,8 @@ function renderTeacherDashboard(studentsRaw) {
                 <div class="sc-label">총 오답 수</div>
             </div>
         </div>
+
+        <div id="accuracy-analysis" style="display:none"></div>
 
         <!-- 학생 테이블 -->
         <div class="teacher-table-wrap">
@@ -472,6 +474,96 @@ function rerenderGifts() {
     const pendingCount = students.filter(s => s.goldenPending > 0).length;
     const gBtn = document.getElementById('tt-gifts');
     if (gBtn) gBtn.innerHTML = `🎁 황금 선물${pendingCount > 0 ? ` · 대기 ${pendingCount}` : ''}`;
+}
+
+/** 평균 정답률 카드 클릭 → 어려워하는 부분 분석 패널 토글 */
+function toggleAccuracyAnalysis() {
+    const box = document.getElementById('accuracy-analysis');
+    if (!box) return;
+    const hint = document.getElementById('acc-hint');
+    const open = box.style.display !== 'none' && box.innerHTML.trim() !== '';
+    if (open) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        if (hint) hint.textContent = '▾ 분석';
+    } else {
+        box.innerHTML = buildAccuracyAnalysis(_lastTeacherData || {});
+        box.style.display = '';
+        if (hint) hint.textContent = '▴ 닫기';
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+/** 학생 전체 데이터를 분석해 '어려워하는 레벨'과 '많이 틀린 문제'를 HTML로 반환 */
+function buildAccuracyAnalysis(studentsRaw) {
+    const levelName = lvl => (typeof LEVEL_NAMES !== 'undefined' && LEVEL_NAMES[lvl]) ? LEVEL_NAMES[lvl] : ('레벨 ' + lvl);
+    const barColor  = acc => acc < 50 ? '#e2574c' : (acc < 70 ? '#f0a830' : '#27c06a');
+
+    const lvlAgg = {}; // lvl -> {correct, wrong, students:Set}
+    const qAgg   = {}; // 'lvl|question' -> {question, level, totalWrong, students:Set, correctAnswer}
+
+    Object.entries(studentsRaw || {}).forEach(([name, data]) => {
+        if (!data) return;
+        const lp = data.levelProgress || {};
+        Object.entries(lp).forEach(([lvl, p]) => {
+            if (!p) return;
+            const c = p.correct || 0, w = p.wrong || 0;
+            if (c + w === 0) return;
+            const L = lvlAgg[lvl] || (lvlAgg[lvl] = { correct: 0, wrong: 0, students: new Set() });
+            L.correct += c; L.wrong += w; L.students.add(name);
+        });
+        (data.wrongNotes || []).forEach(n => {
+            if (!n || !n.question) return;
+            const key = (n.level || 0) + '|' + n.question;
+            const Q = qAgg[key] || (qAgg[key] = { question: n.question, level: n.level || 0, totalWrong: 0, students: new Set(), correctAnswer: n.correctAnswer });
+            Q.totalWrong += (n.wrongCount || 1);
+            Q.students.add(name);
+        });
+    });
+
+    // 레벨별 난이도 (정답률 낮은 순) — 표본 5개 미만 레벨은 제외
+    const levels = Object.entries(lvlAgg)
+        .map(([lvl, L]) => {
+            const total = L.correct + L.wrong;
+            return { lvl: +lvl, acc: Math.round(L.correct / total * 100), wrong: L.wrong, total, n: L.students.size };
+        })
+        .filter(x => x.total >= 5)
+        .sort((a, b) => a.acc - b.acc);
+
+    const levelHTML = levels.length === 0
+        ? `<div class="analysis-empty">아직 분석할 풀이 기록이 부족해요.</div>`
+        : levels.map(x => `
+            <div class="lvl-row">
+                <span class="lvl-name">Lv.${x.lvl} ${escapeHTML(levelName(x.lvl))}</span>
+                <span class="lvl-bar-wrap"><span class="lvl-bar" style="width:${x.acc}%;background:${barColor(x.acc)}"></span></span>
+                <span class="lvl-pct">${x.acc}% · 오답 ${x.wrong}</span>
+            </div>`).join('');
+
+    // 가장 많이 틀린 문제 (틀린 학생 수 → 총 오답 수 순)
+    const questions = Object.values(qAgg)
+        .map(q => ({ ...q, n: q.students.size }))
+        .sort((a, b) => (b.n - a.n) || (b.totalWrong - a.totalWrong))
+        .slice(0, 8);
+
+    const qHTML = questions.length === 0
+        ? `<div class="analysis-empty">오답노트에 쌓인 문제가 아직 없어요.</div>`
+        : questions.map((q, i) => `
+            <div class="q-item">
+                <div class="q-text"><span class="q-rank">${i + 1}</span> ${escapeHTML(q.question)}</div>
+                <div class="q-meta">Lv.${q.level} ${escapeHTML(levelName(q.level))} · <b>${q.n}명</b> 틀림 · 총 ${q.totalWrong}회${q.correctAnswer ? ` · 정답 <span class="q-ans">${escapeHTML(String(q.correctAnswer))}</span>` : ''}</div>
+            </div>`).join('');
+
+    return `
+        <div class="analysis-box">
+            <div class="analysis-h">📉 학생들이 어려워하는 레벨</div>
+            <div class="analysis-sub">정답률 낮은 순 · 반 전체 누적 기준</div>
+            ${levelHTML}
+        </div>
+        <div class="analysis-box">
+            <div class="analysis-h">❗ 가장 많이 틀린 문제 TOP ${questions.length || ''}</div>
+            <div class="analysis-sub">여러 학생이 틀린 순 · 오답노트 집계</div>
+            ${qHTML}
+        </div>`;
 }
 
 /**
